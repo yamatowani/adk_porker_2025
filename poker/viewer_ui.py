@@ -38,8 +38,12 @@ class PokerViewerUI:
         self.pot_holder: Optional[ft.Container] = None
         self.table_title_text: Optional[ft.Text] = None
         self.table_status_text: Optional[ft.Text] = None
-        self.llm_agents_grid: Optional[ft.Column] = None
+        self.llm_agents_grid: Optional[ft.Row] = None
         self.llm_agents_row: Optional[ft.Row] = None
+        # Showdown overlay components
+        self._showdown_results_column: Optional[ft.Column] = None
+        self._showdown_results_panel: Optional[ft.Container] = None
+        self.showdown_overlay_container: Optional[ft.Container] = None
 
     # --- UI helpers -----------------------------------------------------
     def _create_card_face(
@@ -547,8 +551,10 @@ class PokerViewerUI:
             controls=[], scroll=ft.ScrollMode.AUTO, expand=True
         )
 
-        # Viewer-only: LLM API agents latest decisions grid (6 per row)
-        self.llm_agents_grid = ft.Column(controls=[], spacing=10)
+        # Viewer-only: LLM API agents latest decisions (responsive wrap)
+        self.llm_agents_grid = ft.Row(
+            controls=[], wrap=True, spacing=10, run_spacing=10
+        )
 
         # Viewer-only: LLM API agents latest decision panel
         self.llm_agents_row = ft.Row(controls=[], spacing=10)
@@ -622,6 +628,37 @@ class PokerViewerUI:
                 self.community_cards_holder,
                 self.pot_holder,
             ],
+        )
+
+        # Showdown results overlay (initially hidden)
+        self._showdown_results_column = ft.Column(controls=[], spacing=6)
+        self._showdown_results_panel = ft.Container(
+            content=self._showdown_results_column,
+            padding=12,
+            bgcolor=ft.Colors.WHITE,
+            border=ft.border.all(1, ft.Colors.GREY_400),
+            border_radius=10,
+            shadow=ft.BoxShadow(
+                spread_radius=2,
+                blur_radius=10,
+                color=ft.Colors.GREY_500,
+                offset=ft.Offset(0, 4),
+            ),
+            width=520,
+        )
+        self.showdown_overlay_container = ft.Container(
+            left=0,
+            top=0,
+            width=self.table_width,
+            height=self.table_height,
+            visible=False,
+            content=ft.Container(
+                width=self.table_width,
+                height=self.table_height,
+                bgcolor=ft.Colors.with_opacity(0.55, ft.Colors.BLACK),
+                alignment=ft.alignment.center,
+                content=self._showdown_results_panel,
+            ),
         )
 
     def _build_layout(self) -> ft.Column:
@@ -996,7 +1033,25 @@ class PokerViewerUI:
                 self.pot_holder,
             ]
             base_controls = [c for c in base_controls if c is not None]
-            self.table_stack.controls = base_controls + self._build_seat_controls()
+
+            # Build seat controls
+            seat_controls = self._build_seat_controls()
+
+            # Build/clear showdown overlay
+            results = state.get("showdown_results")
+            if (
+                results
+                and self._showdown_results_column
+                and self.showdown_overlay_container
+            ):
+                self._populate_showdown_results(results)
+                overlay_controls = [self.showdown_overlay_container]
+            else:
+                if self.showdown_overlay_container and self._showdown_results_column:
+                    self._clear_showdown_results()
+                overlay_controls = []
+
+            self.table_stack.controls = base_controls + seat_controls + overlay_controls
 
         # Action history (latest first) - styled same as game_ui
         self.action_history_column.controls.clear()
@@ -1007,21 +1062,103 @@ class PokerViewerUI:
                 self._create_action_history_item(action)
             )
 
-        # LLM API Agents panel (latest decisions) - grid with 6 per row
+        # LLM API Agents panel (latest decisions) - responsive wrap
         if self.llm_agents_grid is not None:
             self.llm_agents_grid.controls.clear()
             agents = state.get("llm_api_agents", []) or []
-            row: List[ft.Control] = []
-            for idx, agent in enumerate(agents):
-                row.append(self._create_llm_agent_card(agent))
-                if (idx + 1) % 6 == 0:
-                    self.llm_agents_grid.controls.append(ft.Row(row, spacing=10))
-                    row = []
-            if row:
-                self.llm_agents_grid.controls.append(ft.Row(row, spacing=10))
+            for agent in agents:
+                self.llm_agents_grid.controls.append(self._create_llm_agent_card(agent))
 
         if self.page:
             self.page.update()
+
+    def _populate_showdown_results(self, results: dict):
+        if not self._showdown_results_column or not self.showdown_overlay_container:
+            return
+        # Clear and rebuild
+        self._showdown_results_column.controls.clear()
+
+        # Header
+        self._showdown_results_column.controls.append(
+            ft.Text(
+                "🎉 ショーダウン結果",
+                size=16,
+                weight=ft.FontWeight.BOLD,
+                color=ft.Colors.BLACK,
+            )
+        )
+
+        # Community cards at showdown from latest state
+        community = (self._last_state or {}).get("community_cards", [])
+        if community:
+            self._showdown_results_column.controls.append(
+                ft.Text("コミュニティカード", size=12, weight=ft.FontWeight.W_600)
+            )
+            self._showdown_results_column.controls.append(
+                ft.Row(
+                    [self._create_card_small(str(c)) for c in community],
+                    spacing=4,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                )
+            )
+
+        # All players' hands
+        all_hands = results.get("all_hands", [])
+        if all_hands:
+            self._showdown_results_column.controls.append(
+                ft.Text("各プレイヤーのハンド", size=12, weight=ft.FontWeight.W_600)
+            )
+            for hand_info in all_hands:
+                pid = int(hand_info.get("player_id", -1))
+                player_name = self._get_player_name(pid)
+                cards = [str(c) for c in hand_info.get("cards", [])]
+                hand_desc = str(hand_info.get("hand", ""))
+                row = ft.Row(
+                    [
+                        ft.Text(player_name, size=12, weight=ft.FontWeight.BOLD),
+                        ft.Row([self._create_card_small(c) for c in cards], spacing=4),
+                        ft.Text(hand_desc, size=11, color=ft.Colors.BLUE_GREY),
+                    ],
+                    spacing=10,
+                    alignment=ft.MainAxisAlignment.START,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                )
+                self._showdown_results_column.controls.append(row)
+
+        # Winners
+        results_list = results.get("results", [])
+        if results_list:
+            self._showdown_results_column.controls.append(
+                ft.Text("勝者", size=12, weight=ft.FontWeight.W_600)
+            )
+            for r in results_list:
+                pid = int(r.get("player_id", -1))
+                winnings = int(r.get("winnings", 0) or 0)
+                hand_desc = str(r.get("hand", ""))
+                player_name = self._get_player_name(pid)
+                winner_row = ft.Row(
+                    [
+                        ft.Text("🏆", size=14),
+                        ft.Text(player_name, size=12, weight=ft.FontWeight.BOLD),
+                        self._create_amount_badge(
+                            winnings, ft.Colors.AMBER_50, ft.Colors.AMBER_800
+                        ),
+                        ft.Text(hand_desc, size=11, color=ft.Colors.BLUE_GREY),
+                    ],
+                    spacing=8,
+                    alignment=ft.MainAxisAlignment.START,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                )
+                self._showdown_results_column.controls.append(winner_row)
+
+        # Show overlay
+        self.showdown_overlay_container.visible = True
+
+    def _clear_showdown_results(self):
+        if not self._showdown_results_column or not self.showdown_overlay_container:
+            return
+        self._showdown_results_column.controls.clear()
+        self.showdown_overlay_container.visible = False
 
     async def _poll_loop(self):
         while True:

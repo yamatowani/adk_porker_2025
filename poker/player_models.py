@@ -11,6 +11,8 @@ import requests
 import uuid
 import re
 import logging
+import time
+import concurrent.futures as cf
 
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
@@ -568,53 +570,93 @@ class LLMApiPlayer(Player):
         """
 
         try:
-            # ロガーを使ってプロンプトをログファイルに出力
             logger = logging.getLogger("poker_game")
-            # セッションIDを生成
             session_id = str(uuid.uuid4())
 
             # ゲーム状態をJSON文字列に変換
             input_json = json.dumps(game_state.to_dict(), ensure_ascii=False, indent=2)
-
             logger.debug(f"LLM Prompt for {self.name}: {input_json}")
 
-            # セッションの作成
-            create_session = requests.post(
-                f"{self.url}/apps/{self.app_name}/users/{self.user_id}/sessions/{session_id}",
-                json={},
-                headers={"Content-Type": "application/json"},
-            )
-
-            if create_session.status_code != 200:
-                logger.error(
-                    f"Session creation failed with status {create_session.status_code}: {create_session.text}"
+            # セッションの作成（短いタイムアウト）
+            try:
+                create_session = requests.post(
+                    f"{self.url}/apps/{self.app_name}/users/{self.user_id}/sessions/{session_id}",
+                    json={},
+                    headers={"Content-Type": "application/json"},
+                    timeout=5,
                 )
-                print(
-                    f"Session creation error: {create_session.status_code} - {create_session.text}"
-                )
-            else:
-                logger.debug(f"Create Session: {create_session.json()}")
+                if create_session.status_code != 200:
+                    logger.error(
+                        f"Session creation failed with status {create_session.status_code}: {create_session.text}"
+                    )
+                else:
+                    logger.debug(f"Create Session: {create_session.json()}")
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Session creation request error for {self.name}: {e}")
 
-            # メッセージの送信
-            response = requests.post(
-                f"{self.url}/run",
-                json={
-                    "app_name": self.app_name,
-                    "user_id": self.user_id,
-                    "session_id": session_id,
-                    "new_message": {
-                        "role": "user",
-                        "parts": [{"text": input_json}],
-                    },
-                },
-                headers={"Content-Type": "application/json"},
-            )
+            # 実際の実行リクエストを別スレッドで発行し、20秒待機・10秒ごとにログ
+            def run_request():
+                try:
+                    return requests.post(
+                        f"{self.url}/run",
+                        json={
+                            "app_name": self.app_name,
+                            "user_id": self.user_id,
+                            "session_id": session_id,
+                            "new_message": {
+                                "role": "user",
+                                "parts": [{"text": input_json}],
+                            },
+                        },
+                        headers={"Content-Type": "application/json"},
+                        timeout=19,  # スレッド側は19秒でタイムアウト
+                    )
+                except Exception as e:
+                    return e
+
+            start = time.time()
+            logged_10 = False
+            with cf.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(run_request)
+                response = None
+                while True:
+                    elapsed = time.time() - start
+                    # 10秒経過ログ
+                    if not logged_10 and elapsed >= 10:
+                        logger.info(
+                            f"Waiting for LLM API response for {self.name}... 10 seconds elapsed"
+                        )
+                        logged_10 = True
+                    try:
+                        # 短い待機でポーリング
+                        response = future.result(timeout=0.2)
+                        break
+                    except cf.TimeoutError:
+                        pass
+                    if elapsed >= 20:
+                        logger.warning(
+                            f"LLM API response timeout for {self.name} after 20 seconds - folding"
+                        )
+                        if hasattr(self, "last_decision_reasoning"):
+                            self.last_decision_reasoning = (
+                                "20秒経過しても応答がないため、フォールドします"
+                            )
+                        return {"action": "fold", "amount": 0}
+
+            # スレッド結果の処理
+            if isinstance(response, Exception):
+                logger.error(f"LLM decision error for {self.name}: {response}")
+                random_player = RandomPlayer(self.id, self.name, self.chips)
+                return random_player.make_decision(game_state)
+
+            if response is None:
+                logger.error(f"Empty response received for {self.name}")
+                return {"action": "fold", "amount": 0}
 
             if response.status_code != 200:
                 logger.error(
                     f"API request failed with status {response.status_code}: {response.text}"
                 )
-                logger.error(f"API error: {response.status_code} - {response.text}")
                 if response.status_code == 422:
                     logger.error(
                         f"422 Error details - Request data: {json.dumps({
@@ -624,20 +666,27 @@ class LLMApiPlayer(Player):
                         'message_preview': input_json[:200] + '...' if len(input_json) > 200 else input_json
                     }, indent=2)}"
                     )
-            else:
-                logger.info(f"LLM raw Response for {self.name}: {response.json()}")
+                # 失敗時はフォールドで安全に進行
+                return {"action": "fold", "amount": 0}
 
-            logger.debug(f"LLM [-1]['content']['parts'][0]['text'] for {self.name}:")
-            logger.debug(response.json()[-1]["content"]["parts"][0]["text"])
+            # 正常応答
+            try:
+                logger.info(f"LLM raw Response for {self.name}: {response.json()}")
+                logger.debug(
+                    f"LLM [-1]['content']['parts'][0]['text'] for {self.name}:"
+                )
+                logger.debug(response.json()[-1]["content"]["parts"][0]["text"])
+            except Exception:
+                # JSONでない/形式不正でも後続のパースで対応
+                pass
 
             return self._parse_llm_response(
-                response.json()[-1]["content"]["parts"][0][
-                    "text"
-                ],  # 採用する戦略はoutputの末尾のjsonのみ
+                response.json()[-1]["content"]["parts"][0]["text"],
                 game_state,
             )
 
         except Exception as e:
+            logger = logging.getLogger("poker_game")
             logger.error(f"LLM decision error for {self.name}: {e}")
             # エラー時はランダム行動
             random_player = RandomPlayer(self.id, self.name, self.chips)
