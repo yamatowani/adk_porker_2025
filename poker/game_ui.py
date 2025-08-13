@@ -62,6 +62,11 @@ class GameUI:
         self.showdown_overlay_container: Optional[ft.Container] = None
         self._showdown_results_panel: Optional[ft.Container] = None
 
+        # ゲーム結果表示（ゲーム終了時の最終結果）
+        self._final_results_column: Optional[ft.Column] = None
+        self._final_results_panel: Optional[ft.Container] = None
+        self.final_results_overlay_container: Optional[ft.Container] = None
+
     def initialize(self, page: ft.Page):
         """ゲーム画面を初期化"""
         self.page = page
@@ -219,6 +224,37 @@ class GameUI:
                 bgcolor=ft.Colors.with_opacity(0.55, ft.Colors.BLACK),
                 alignment=ft.alignment.center,
                 content=self._showdown_results_panel,
+            ),
+        )
+
+        # 最終結果オーバーレイ
+        self._final_results_column = ft.Column(controls=[], spacing=6)
+        self._final_results_panel = ft.Container(
+            content=self._final_results_column,
+            padding=12,
+            bgcolor=ft.Colors.WHITE,
+            border=ft.border.all(1, ft.Colors.GREY_400),
+            border_radius=10,
+            shadow=ft.BoxShadow(
+                spread_radius=2,
+                blur_radius=10,
+                color=ft.Colors.GREY_500,
+                offset=ft.Offset(0, 4),
+            ),
+            width=520,
+        )
+        self.final_results_overlay_container = ft.Container(
+            left=0,
+            top=0,
+            width=self.table_width,
+            height=self.table_height,
+            visible=False,
+            content=ft.Container(
+                width=self.table_width,
+                height=self.table_height,
+                bgcolor=ft.Colors.with_opacity(0.55, ft.Colors.BLACK),
+                alignment=ft.alignment.center,
+                content=self._final_results_panel,
             ),
         )
 
@@ -1242,7 +1278,9 @@ class GameUI:
             # オーバーレイは最前面に配置する
             overlay_controls = []
             if getattr(self, "showdown_overlay_container", None):
-                overlay_controls = [self.showdown_overlay_container]
+                overlay_controls.append(self.showdown_overlay_container)
+            if getattr(self, "final_results_overlay_container", None):
+                overlay_controls.append(self.final_results_overlay_container)
             self.table_stack.controls = base_controls + seat_controls + overlay_controls
 
         # 自分の手札を更新
@@ -1619,3 +1657,103 @@ class GameUI:
         self.showdown_continue_confirmed = True
         # 見た目上はすぐに非表示にする
         self.clear_showdown_results_inline()
+
+    # ==== ゲーム終了・最終結果表示 ====
+    def show_final_results(self):
+        """ゲーム終了時の最終結果をテーブル上のオーバーレイで表示する"""
+        if not self._final_results_column or not self.final_results_overlay_container:
+            return
+
+        self._final_results_column.controls.clear()
+
+        # 見出し
+        self._final_results_column.controls.append(
+            ft.Text(
+                "🏁 ゲーム結果",
+                size=16,
+                weight=ft.FontWeight.BOLD,
+                color=ft.Colors.BLACK,
+            )
+        )
+
+        # 順位表（所持チップの多い順）
+        standings = []
+        try:
+            standings = sorted(self.game.players, key=lambda p: p.chips, reverse=True)
+        except Exception:
+            standings = []
+
+        if standings:
+            # 勝者
+            winner = standings[0]
+            self._final_results_column.controls.append(
+                ft.Container(
+                    content=ft.Row(
+                        [
+                            ft.Text("🏆 WINNER", size=14, weight=ft.FontWeight.BOLD),
+                            ft.Text(winner.name, size=14, weight=ft.FontWeight.BOLD),
+                            self._create_amount_badge(
+                                winner.chips, ft.Colors.AMBER_50, ft.Colors.AMBER_800
+                            ),
+                        ],
+                        spacing=8,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    padding=6,
+                    bgcolor=ft.Colors.AMBER_50,
+                    border=ft.border.all(1, ft.Colors.AMBER_200),
+                    border_radius=8,
+                    margin=ft.margin.only(bottom=6),
+                )
+            )
+
+            # 全プレイヤー順位
+            self._final_results_column.controls.append(
+                ft.Text("最終順位", size=12, weight=ft.FontWeight.W_600)
+            )
+            for rank, p in enumerate(standings, start=1):
+                row = ft.Row(
+                    [
+                        ft.Text(f"#{rank}", size=12, weight=ft.FontWeight.BOLD),
+                        ft.Text(p.name, size=12),
+                        self._create_amount_badge(
+                            p.chips, ft.Colors.GREY_50, ft.Colors.GREY_800
+                        ),
+                    ],
+                    spacing=10,
+                    alignment=ft.MainAxisAlignment.START,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                )
+                self._final_results_column.controls.append(row)
+
+        # 終了ボタン（設定画面へ戻る）
+        back_button = ft.ElevatedButton(
+            text="設定画面に戻る",
+            on_click=lambda e: (
+                self.on_back_to_setup() if callable(self.on_back_to_setup) else None
+            ),
+            bgcolor=ft.Colors.GREEN,
+            color=ft.Colors.WHITE,
+        )
+        self._final_results_column.controls.append(
+            ft.Container(
+                content=back_button,
+                alignment=ft.alignment.center,
+                margin=ft.margin.only(top=8),
+            )
+        )
+
+        # 表示
+        self.final_results_overlay_container.visible = True
+        if self.page:
+            self.page.update()
+
+    def clear_final_results(self):
+        """最終結果の表示をクリア"""
+        if not self._final_results_column or not self.final_results_overlay_container:
+            return
+        self._final_results_column.controls.clear()
+        self.final_results_overlay_container.visible = False
+        if self.page:
+            self.page.update()

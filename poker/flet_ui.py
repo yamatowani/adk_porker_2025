@@ -323,12 +323,22 @@ class PokerFletUI:
                     time.sleep(0.1)
                 # フラグをリセット
                 self.game_ui.showdown_continue_confirmed = False
+
+                # ショーダウン後、ゲーム終了条件を再確認
+                if self.game.is_game_over():
+                    break
             else:
                 # ショーダウンにならなかった場合（全員フォールドなど）の続行確認
                 if not self.ask_continue_game():
                     break
 
-        # ゲーム終了（ダイアログ表示は行わない）
+        # ゲーム終了時、最終結果を表示（勝者が決定している場合）
+        try:
+            if self.game.is_game_over():
+                self.game_ui.update_display()
+                self.game_ui.show_final_results()
+        except Exception:
+            pass
 
     def ask_continue_game(self) -> bool:
         """ゲーム続行確認"""
