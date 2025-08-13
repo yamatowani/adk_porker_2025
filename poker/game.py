@@ -68,6 +68,9 @@ class PokerGame:
         # ゲーム統計
         self.game_stats = {"hands_played": 0, "players_eliminated": []}
 
+        # 最後に実行したショーダウン結果（観戦UI向けに公開するため）
+        self.last_showdown_results: Optional[Dict[str, Any]] = None
+
         game_logger.info(
             "PokerGame initialized with SB=%d, BB=%d, initial_chips=%d",
             small_blind,
@@ -196,6 +199,8 @@ class PokerGame:
         self.last_raiser_index = None
         self.has_bet_or_raise_this_round = False
         self.action_history = []
+        # 前ハンドのショーダウン表示内容をクリア
+        self.last_showdown_results = None
 
         # プレイヤーをリセット
         for player in self.players:
@@ -910,7 +915,9 @@ class PokerGame:
 
         if len(remaining_players) == 0:
             game_logger.warning("Showdown called with no remaining players")
-            return {"winners": [], "results": []}
+            result: Dict[str, Any] = {"winners": [], "results": []}
+            self.last_showdown_results = result
+            return result
 
         if len(remaining_players) == 1:
             # 1人だけ残った場合
@@ -925,7 +932,7 @@ class PokerGame:
                 game_logger.info("=== SHOWDOWN_RESULTS_RECORDED ===")
             except Exception as e:
                 game_logger.debug("Showdown logging (single winner) failed: %s", e)
-            return {
+            result = {
                 "winners": [winner.id],
                 "results": [
                     {
@@ -935,6 +942,8 @@ class PokerGame:
                     }
                 ],
             }
+            self.last_showdown_results = result
+            return result
 
         # 複数プレイヤーでのショーダウン
         player_hands = []
@@ -1014,7 +1023,7 @@ class PokerGame:
         except Exception as e:
             game_logger.debug("Showdown logging (results) failed: %s", e)
 
-        return {
+        result = {
             "winners": [w.id for w in winners],
             "results": results,
             "all_hands": [
@@ -1026,6 +1035,8 @@ class PokerGame:
                 for ph in player_hands
             ],
         }
+        self.last_showdown_results = result
+        return result
 
     def is_game_over(self) -> bool:
         """ゲーム終了条件をチェック"""

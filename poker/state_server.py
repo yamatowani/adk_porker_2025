@@ -107,6 +107,8 @@ def _build_viewer_state() -> Dict[str, Any]:
         "players": players,
         "action_history": list(game.action_history),
         "llm_api_agents": llm_api_agents,
+        # ショーダウン結果（存在する場合のみ）
+        "showdown_results": getattr(game, "last_showdown_results", None),
     }
     return state
 
