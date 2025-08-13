@@ -38,7 +38,7 @@ class PokerViewerUI:
         self.pot_holder: Optional[ft.Container] = None
         self.table_title_text: Optional[ft.Text] = None
         self.table_status_text: Optional[ft.Text] = None
-        self.llm_agents_grid: Optional[ft.Column] = None
+        self.llm_agents_grid: Optional[ft.Row] = None
         self.llm_agents_row: Optional[ft.Row] = None
 
     # --- UI helpers -----------------------------------------------------
@@ -547,8 +547,10 @@ class PokerViewerUI:
             controls=[], scroll=ft.ScrollMode.AUTO, expand=True
         )
 
-        # Viewer-only: LLM API agents latest decisions grid (6 per row)
-        self.llm_agents_grid = ft.Column(controls=[], spacing=10)
+        # Viewer-only: LLM API agents latest decisions (responsive wrap)
+        self.llm_agents_grid = ft.Row(
+            controls=[], wrap=True, spacing=10, run_spacing=10
+        )
 
         # Viewer-only: LLM API agents latest decision panel
         self.llm_agents_row = ft.Row(controls=[], spacing=10)
@@ -1007,18 +1009,12 @@ class PokerViewerUI:
                 self._create_action_history_item(action)
             )
 
-        # LLM API Agents panel (latest decisions) - grid with 6 per row
+        # LLM API Agents panel (latest decisions) - responsive wrap
         if self.llm_agents_grid is not None:
             self.llm_agents_grid.controls.clear()
             agents = state.get("llm_api_agents", []) or []
-            row: List[ft.Control] = []
-            for idx, agent in enumerate(agents):
-                row.append(self._create_llm_agent_card(agent))
-                if (idx + 1) % 6 == 0:
-                    self.llm_agents_grid.controls.append(ft.Row(row, spacing=10))
-                    row = []
-            if row:
-                self.llm_agents_grid.controls.append(ft.Row(row, spacing=10))
+            for agent in agents:
+                self.llm_agents_grid.controls.append(self._create_llm_agent_card(agent))
 
         if self.page:
             self.page.update()
