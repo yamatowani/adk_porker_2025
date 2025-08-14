@@ -41,18 +41,9 @@ root_agent = Agent(
 
     Always respond in this JSON format:
     {
-      "success": true,
       "action": "fold|check|call|raise|all_in",
       "amount": <number>,
       "reasoning": "Brief explanation of your decision reasoning"
-    }
-
-    If there's an error or you cannot make a decision, respond with:
-    {
-      "success": false,
-      "action": "fold",
-      "amount": 0,
-      "reasoning": "Error description or reason for failure"
     }
 
     Rules:
