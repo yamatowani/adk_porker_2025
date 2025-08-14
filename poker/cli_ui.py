@@ -648,7 +648,7 @@ class PokerUI:
 
             # 最終結果表示
             print(f"\n{'='*70}")
-            print(f"🤖 エージェント専用モード完了 - {hand_count}ハンド実行")
+            print(f"エージェント専用モード完了 - {hand_count}ハンド実行")
             print(f"{'='*70}")
 
             # 最終チップ数でソート
@@ -688,7 +688,7 @@ class PokerUI:
                 agent_stats[agent_type]["wins"] += stats["hands_won"]
                 agent_stats[agent_type]["players"] += 1
 
-            print(f"\n🤖 エージェント別統計:")
+            print(f"\nエージェント別統計:")
             for agent_type, stats in agent_stats.items():
                 avg_wins = (
                     stats["wins"] / stats["players"] if stats["players"] > 0 else 0
@@ -701,11 +701,11 @@ class PokerUI:
             total_wins = sum(stats["hands_won"] for stats in player_stats.values())
             print(f"   決着ハンド: {total_wins}")
 
-            print(f"\n🎯 最多勝利者:")
+            print(f"\n最多勝利者:")
             best_player = max(player_stats.items(), key=lambda x: x[1]["hands_won"])
             print(f"   {best_player[0]}: {best_player[1]['hands_won']}勝")
 
-            print(f"\n💰 最高利益者:")
+            print(f"\n最高利益者:")
             most_profitable = max(
                 final_rankings, key=lambda p: p.chips - self.game.initial_chips
             )
