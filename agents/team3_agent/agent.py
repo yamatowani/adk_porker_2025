@@ -1,6 +1,7 @@
 from google.adk.agents import Agent
 from .agents.preflop_agent import preflop_agent
- 
+from .agents.make_decision_from_percentage_agent import make_decision_from_percentage_agent
+
 root_agent = Agent(
       name="beginner_poker_agent",
       model="gemini-2.5-flash-lite",
@@ -21,8 +22,11 @@ root_agent = Agent(
     - IMPORTANT: Never transfer back to beginner_poker_agent from preflop_decision_agent
 
     Post-flop Phase Decision:
-    - Make comprehensive judgment including community card situations
-    - Consider pot odds, outs, and opponent tendencies
+    - When phase="flop|turn|river", transfer to make_decision_from_percentage_agent
+    - Sub-agent caucuses calculate_role tool to evaluate evaluate role probability
+    - Adopt sub-agent's JSON response (action, amount, reasoning) as-is
+    - Transfer only once and must accept the result
+    - IMPORTANT: Never transfer back to beginner_poker_agent from preflop_decision_agent
 
     You will receive the following information:
     - Your hole cards
@@ -63,5 +67,5 @@ root_agent = Agent(
     - If preflop_decision_agent fails, make your own decision instead of transferring
     - Always return valid JSON format even if there are errors
     - Use success: false for error cases and success: true for successful decisions""",
-    sub_agents=[preflop_agent],
+    sub_agents=[preflop_agent,make_decision_from_percentage_agent],
 )
