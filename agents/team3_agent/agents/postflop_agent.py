@@ -2,9 +2,8 @@ from google.adk.agents import Agent
 from ..tools.calculate_probabilities import calculate_hand_probabilities
 from ..tools.monte_carlo_probabilities import monte_carlo_probabilities
 
-MODEL_GEMINI_2_5_FLASH = "gemini-2.5-flash"
 postflop_agent = Agent(
-  model = MODEL_GEMINI_2_5_FLASH,
+  model = "gemini-2.5-flash-lite",
   name="postflop_agent",
   description="Post-flop decision agent that bases its action only on tool outputs from calculate_hand_probabilities and monte_carlo_probabilities (no self math). Chooses among the provided actions, sets amounts by the strings in actions, and returns the final JSON.",
   instruction="""Internal post-flop decision agent. Do not perform numeric calculations yourself (no pot-odds/EV). Use only the two tools’ outputs and simple board texture cues. The parent makes the final decision to route here; you must return the final JSON.
