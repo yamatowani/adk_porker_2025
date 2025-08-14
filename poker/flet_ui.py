@@ -11,6 +11,7 @@ from .setup_ui import SetupUI
 from .game_ui import GameUI
 from .shared_state import set_current_game
 from .state_server import ensure_state_server
+from .game_ui import UI_UPDATE_LOCK
 
 
 class PokerFletUI:
@@ -60,16 +61,17 @@ class PokerFletUI:
 
     def build_layout(self):
         """レイアウトを構築"""
-        self.page.controls.clear()
+        with UI_UPDATE_LOCK:
+            self.page.controls.clear()
 
-        if not self.game_started:
-            # 設定画面を表示
-            self.page.add(self.setup_ui.get_container())
-        else:
-            # ゲーム画面を表示
-            self.page.add(self.game_ui.build_layout())
+            if not self.game_started:
+                # 設定画面を表示
+                self.page.add(self.setup_ui.get_container())
+            else:
+                # ゲーム画面を表示
+                self.page.add(self.game_ui.build_layout())
 
-        self.page.update()
+            self.page.update()
 
     def start_game(self):
         """ゲームを開始"""
@@ -371,20 +373,20 @@ class PokerFletUI:
             ],
         )
 
-        # 既存のダイアログをクリアしてから新しいダイアログを追加
-        # raise_dialog以外をクリア
-        overlays_to_remove = [
-            overlay
-            for overlay in self.page.overlay
-            if overlay != self.game_ui.get_raise_dialog()
-        ]
-        for overlay in overlays_to_remove:
-            self.page.overlay.remove(overlay)
+        with UI_UPDATE_LOCK:
+            # 既存のダイアログをクリアしてから新しいダイアログを追加
+            overlays_to_remove = [
+                overlay
+                for overlay in self.page.overlay
+                if overlay != self.game_ui.get_raise_dialog()
+            ]
+            for overlay in overlays_to_remove:
+                self.page.overlay.remove(overlay)
 
-        # 新しいダイアログを追加して開く
-        self.page.overlay.append(dialog)
-        dialog.open = True
-        self.page.update()
+            # 新しいダイアログを追加して開く
+            self.page.overlay.append(dialog)
+            dialog.open = True
+            self.page.update()
 
         # ユーザーの応答を待つ
         while result[0] is None:
