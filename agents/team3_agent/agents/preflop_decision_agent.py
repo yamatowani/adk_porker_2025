@@ -1,6 +1,6 @@
 from google.adk.agents import LlmAgent
-from ..tools.hands_eval import evaluate_hands 
 from pydantic import BaseModel, Field
+from ..callbacks.after_model_callback import before_model_callback
 
 class OutputSchema(BaseModel):
   action: str = Field(description="Action to take")
@@ -22,14 +22,10 @@ preflop_decision_agent = LlmAgent(
 
     Process:
     1. Extract your_cards from input (e.g., ["Ah", "4d"])
-    2. Convert cards to JSON array string format for evaluate_hands tool
-    3. Use evaluate_hands tool to get hand rank evaluation (for reference only)
-    4. Analyze game situation comprehensively (pot, bet to call, position, stack sizes, etc.)
-    5. Make final decision based on overall situation, not just hand rank
-    6. Return ONLY the JSON object, nothing else
-
-    Available Tools:
-    - evaluate_hands: Evaluate hand rank (input format: '["Ah", "4d"]' - JSON array string)
+    2. Extract hand_evaluation from input (result from before_model_callback)
+    3. Analyze game situation comprehensively (pot, bet to call, position, stack sizes, etc.)
+    4. Make final decision based on overall situation, not just hand rank
+    5. Return ONLY the JSON object, nothing else
 
     **MANDATORY JSON RESPONSE FORMAT:**
     {
@@ -96,7 +92,6 @@ preflop_decision_agent = LlmAgent(
     - Make decisions based on position, pot odds, and overall situation
     - Hand rank is reference only - don't rely solely on it
     - Consider stack sizes and opponent tendencies
-    - Pass cards to evaluate_hands as JSON array string (e.g., '["Ah", "4d"]')
     - Always include action, amount, and reasoning in JSON response
 
     **EXAMPLE RESPONSES:**
@@ -110,5 +105,6 @@ preflop_decision_agent = LlmAgent(
     Bad: "The user provided a game state where they are holding 9s and Kh. The game is in the preflop stage... {"action": "fold", "amount": 0, "reasoning": "..."}"
 
     **CRITICAL: Return ONLY the JSON object, nothing else! No text before, no text after, just the JSON!**""",
-    output_schema=OutputSchema
+    output_schema=OutputSchema,
+    before_model_callback=before_model_callback
 )
