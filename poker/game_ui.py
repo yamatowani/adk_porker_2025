@@ -6,9 +6,13 @@ import math
 import re
 import flet as ft
 from typing import Dict, Any, Optional, Callable, List, Tuple
+import threading
 from .game import PokerGame, GamePhase
 from .player_models import Player, HumanPlayer, PlayerStatus
 from .evaluator import HandEvaluator
+
+# グローバルなUI更新ロック（複数スレッドからの同時更新を防止）
+UI_UPDATE_LOCK = threading.RLock()
 
 
 class GameUI:
@@ -1224,243 +1228,254 @@ class GameUI:
         """画面表示を更新"""
         if not self.game:
             return
+        with UI_UPDATE_LOCK:
+            # ゲーム情報を更新
+            phase_names = {
+                GamePhase.PREFLOP: "プリフロップ",
+                GamePhase.FLOP: "フロップ",
+                GamePhase.TURN: "ターン",
+                GamePhase.RIVER: "リバー",
+                GamePhase.SHOWDOWN: "ショーダウン",
+                GamePhase.FINISHED: "終了",
+            }
+            phase_name = phase_names.get(self.game.current_phase, "不明")
 
-        # ゲーム情報を更新
-        phase_names = {
-            GamePhase.PREFLOP: "プリフロップ",
-            GamePhase.FLOP: "フロップ",
-            GamePhase.TURN: "ターン",
-            GamePhase.RIVER: "リバー",
-            GamePhase.SHOWDOWN: "ショーダウン",
-            GamePhase.FINISHED: "終了",
-        }
-        phase_name = phase_names.get(self.game.current_phase, "不明")
-
-        # 上部情報バーは簡素化（ポット/現在のベットはテーブル上に表示するため除外）
-        self.game_info_text.value = (
-            f"🎯 ハンド #{self.game.hand_number} | 🎲 フェーズ: {phase_name}"
-        )
-
-        # コミュニティカードを更新
-        self.community_cards_row.controls.clear()
-        if self.game.community_cards:
-            for card in self.game.community_cards:
-                self.community_cards_row.controls.append(
-                    self.create_card_widget(str(card))
-                )
-        else:
-            self.community_cards_row.controls.append(
-                ft.Text("まだカードがありません", size=12, color=ft.Colors.WHITE)
+            # 上部情報バーは簡素化（ポット/現在のベットはテーブル上に表示するため除外）
+            self.game_info_text.value = (
+                f"🎯 ハンド #{self.game.hand_number} | 🎲 フェーズ: {phase_name}"
             )
 
-        # 中央のポット/ベット表示を更新
-        if self.pot_text:
-            self.pot_text.value = (
-                f"💰 Pot: {self.game.pot:,}   💵 Bet: {self.game.current_bet:,}"
-            )
-
-        # テーブルヘッダーのステータスはハンド/フェーズのみ
-        if self.table_status_text:
-            self.table_status_text.value = (
-                f"Hand #{self.game.hand_number}  •  {phase_name}"
-            )
-
-        # 座席（Stack上のPositioned）を更新
-        if self.table_stack:
-            base_controls = [
-                self.table_background,
-                self.community_cards_holder,
-                self.pot_holder,
-            ]
-            seat_controls = self._build_seat_controls()
-            # None を除外
-            base_controls = [c for c in base_controls if c is not None]
-            # オーバーレイは最前面に配置する
-            overlay_controls = []
-            if getattr(self, "showdown_overlay_container", None):
-                overlay_controls.append(self.showdown_overlay_container)
-            if getattr(self, "final_results_overlay_container", None):
-                overlay_controls.append(self.final_results_overlay_container)
-            self.table_stack.controls = base_controls + seat_controls + overlay_controls
-
-        # 自分の手札を更新
-        self.your_cards_row.controls.clear()
-        player = self.game.get_player(self.current_player_id)
-        if player and player.hole_cards:
-            for card in player.hole_cards:
-                self.your_cards_row.controls.append(self.create_card_widget(str(card)))
-
-            # 現在の最強ハンドを表示
-            if len(self.game.community_cards) >= 3:
-                hand_result = HandEvaluator.evaluate_hand(
-                    player.hole_cards, self.game.community_cards
-                )
-                hand_desc = HandEvaluator.get_hand_strength_description(hand_result)
-                self.your_cards_row.controls.append(
-                    ft.Container(
-                        content=ft.Text(
-                            f"現在のハンド:\n{hand_desc}",
-                            size=10,
-                            text_align=ft.TextAlign.CENTER,
-                        ),
-                        padding=5,
-                        margin=ft.margin.only(left=10),
+            # コミュニティカードを更新
+            self.community_cards_row.controls.clear()
+            if self.game.community_cards:
+                for card in self.game.community_cards:
+                    self.community_cards_row.controls.append(
+                        self.create_card_widget(str(card))
                     )
+            else:
+                self.community_cards_row.controls.append(
+                    ft.Text("まだカードがありません", size=12, color=ft.Colors.WHITE)
                 )
-        else:
-            self.your_cards_row.controls.append(
-                ft.Text("手札がありません", size=12, color=ft.Colors.GREY_600)
+
+            # 中央のポット/ベット表示を更新
+            if self.pot_text:
+                self.pot_text.value = (
+                    f"💰 Pot: {self.game.pot:,}   💵 Bet: {self.game.current_bet:,}"
+                )
+
+            # テーブルヘッダーのステータスはハンド/フェーズのみ
+            if self.table_status_text:
+                self.table_status_text.value = (
+                    f"Hand #{self.game.hand_number}  •  {phase_name}"
+                )
+
+            # 座席（Stack上のPositioned）を更新
+            if self.table_stack:
+                base_controls = [
+                    self.table_background,
+                    self.community_cards_holder,
+                    self.pot_holder,
+                ]
+                seat_controls = self._build_seat_controls()
+                # None を除外
+                base_controls = [c for c in base_controls if c is not None]
+                # オーバーレイは最前面に配置する
+                overlay_controls = []
+                if getattr(self, "showdown_overlay_container", None):
+                    overlay_controls.append(self.showdown_overlay_container)
+                if getattr(self, "final_results_overlay_container", None):
+                    overlay_controls.append(self.final_results_overlay_container)
+                self.table_stack.controls = (
+                    base_controls + seat_controls + overlay_controls
+                )
+
+            # 自分の手札を更新
+            self.your_cards_row.controls.clear()
+            player = self.game.get_player(self.current_player_id)
+            if player and player.hole_cards:
+                for card in player.hole_cards:
+                    self.your_cards_row.controls.append(
+                        self.create_card_widget(str(card))
+                    )
+
+                # 現在の最強ハンドを表示
+                if len(self.game.community_cards) >= 3:
+                    hand_result = HandEvaluator.evaluate_hand(
+                        player.hole_cards, self.game.community_cards
+                    )
+                    hand_desc = HandEvaluator.get_hand_strength_description(hand_result)
+                    self.your_cards_row.controls.append(
+                        ft.Container(
+                            content=ft.Text(
+                                f"現在のハンド:\n{hand_desc}",
+                                size=10,
+                                text_align=ft.TextAlign.CENTER,
+                            ),
+                            padding=5,
+                            margin=ft.margin.only(left=10),
+                        )
+                    )
+            else:
+                self.your_cards_row.controls.append(
+                    ft.Text("手札がありません", size=12, color=ft.Colors.GREY_600)
+                )
+
+            # アクション履歴を更新（全件・最新が上）
+            self.action_history_column.controls.clear()
+            all_actions_desc = (
+                list(reversed(self.game.action_history))
+                if self.game.action_history
+                else []
             )
+            for action in all_actions_desc:
+                self.action_history_column.controls.append(
+                    self._create_action_history_item(action)
+                )
 
-        # アクション履歴を更新（全件・最新が上）
-        self.action_history_column.controls.clear()
-        all_actions_desc = (
-            list(reversed(self.game.action_history)) if self.game.action_history else []
-        )
-        for action in all_actions_desc:
-            self.action_history_column.controls.append(
-                self._create_action_history_item(action)
-            )
-
-        # デバッグメッセージはUIに表示しない（ログのみ）
-
-        # ページを更新
-        if self.page:
-            self.page.update()
+            # ページを更新
+            if self.page:
+                self.page.update()
 
     def update_action_buttons(self):
         """アクションボタンを更新"""
-        # フェーズ遷移のユーザー確認を待っている間は上書きしない
-        if getattr(self, "is_waiting_phase_confirmation", False):
-            return
+        with UI_UPDATE_LOCK:
+            # フェーズ遷移のユーザー確認を待っている間は上書きしない
+            if getattr(self, "is_waiting_phase_confirmation", False):
+                return
 
-        self.action_buttons_row.controls.clear()
+            self.action_buttons_row.controls.clear()
 
-        if not self.game or self.game.current_phase in [
-            GamePhase.SHOWDOWN,
-            GamePhase.FINISHED,
-        ]:
-            return
+            if not self.game or self.game.current_phase in [
+                GamePhase.SHOWDOWN,
+                GamePhase.FINISHED,
+            ]:
+                return
 
-        current_player = self.game.players[self.game.current_player_index]
-        if current_player.id != self.current_player_id or not isinstance(
-            current_player, HumanPlayer
-        ):
-            self.status_text.value = (
-                f"{current_player.name} のターンです（AIプレイヤー）"
-            )
-            self.status_text.color = ft.Colors.ORANGE
+            current_player = self.game.players[self.game.current_player_index]
+            if current_player.id != self.current_player_id or not isinstance(
+                current_player, HumanPlayer
+            ):
+                self.status_text.value = (
+                    f"{current_player.name} のターンです（AIプレイヤー）"
+                )
+                self.status_text.color = ft.Colors.ORANGE
+                if self.page:
+                    self.page.update()
+                return
+
+            if current_player.status != PlayerStatus.ACTIVE:
+                return
+
+            # 利用可能なアクションを取得
+            try:
+                game_state = self.game.get_llm_game_state(self.current_player_id)
+                available_actions = game_state.actions
+            except Exception:
+                return
+
+            self.status_text.value = "アクションを選択してください"
+            self.status_text.color = ft.Colors.BLUE
+
+            # アクションボタンを作成
+            for action in available_actions:
+                if action == "fold":
+                    btn = ft.ElevatedButton(
+                        "フォールド",
+                        on_click=lambda e, a="fold": self.handle_action(a, 0),
+                        bgcolor=ft.Colors.RED_400,
+                        color=ft.Colors.WHITE,
+                    )
+                elif action == "check":
+                    btn = ft.ElevatedButton(
+                        "チェック",
+                        on_click=lambda e, a="check": self.handle_action(a, 0),
+                        bgcolor=ft.Colors.BLUE_400,
+                        color=ft.Colors.WHITE,
+                    )
+                elif action.startswith("call"):
+                    amount = int(action.split("(")[1].split(")")[0])
+                    btn = ft.ElevatedButton(
+                        f"コール ({amount})",
+                        on_click=lambda e, a="call", amt=amount: self.handle_action(
+                            a, amt
+                        ),
+                        bgcolor=ft.Colors.GREEN_400,
+                        color=ft.Colors.WHITE,
+                    )
+                elif action.startswith("raise"):
+                    min_amount = int(action.split("min ")[1].split(")")[0])
+                    btn = ft.ElevatedButton(
+                        f"レイズ (最低{min_amount})",
+                        on_click=lambda e, min_amt=min_amount: self._show_raise_dialog(
+                            min_amt
+                        ),
+                        bgcolor=ft.Colors.ORANGE_400,
+                        color=ft.Colors.WHITE,
+                    )
+                elif action.startswith("all-in"):
+                    amount = int(action.split("(")[1].split(")")[0])
+                    btn = ft.ElevatedButton(
+                        f"オールイン ({amount})",
+                        on_click=lambda e, a="all_in", amt=amount: self.handle_action(
+                            a, amt
+                        ),
+                        bgcolor=ft.Colors.PURPLE_400,
+                        color=ft.Colors.WHITE,
+                    )
+                else:
+                    continue
+
+                self.action_buttons_row.controls.append(btn)
+
             if self.page:
                 self.page.update()
-            return
-
-        if current_player.status != PlayerStatus.ACTIVE:
-            return
-
-        # 利用可能なアクションを取得
-        try:
-            game_state = self.game.get_llm_game_state(self.current_player_id)
-            available_actions = game_state.actions
-        except Exception:
-            return
-
-        self.status_text.value = "アクションを選択してください"
-        self.status_text.color = ft.Colors.BLUE
-
-        # アクションボタンを作成
-        for action in available_actions:
-            if action == "fold":
-                btn = ft.ElevatedButton(
-                    "フォールド",
-                    on_click=lambda e, a="fold": self.handle_action(a, 0),
-                    bgcolor=ft.Colors.RED_400,
-                    color=ft.Colors.WHITE,
-                )
-            elif action == "check":
-                btn = ft.ElevatedButton(
-                    "チェック",
-                    on_click=lambda e, a="check": self.handle_action(a, 0),
-                    bgcolor=ft.Colors.BLUE_400,
-                    color=ft.Colors.WHITE,
-                )
-            elif action.startswith("call"):
-                amount = int(action.split("(")[1].split(")")[0])
-                btn = ft.ElevatedButton(
-                    f"コール ({amount})",
-                    on_click=lambda e, a="call", amt=amount: self.handle_action(a, amt),
-                    bgcolor=ft.Colors.GREEN_400,
-                    color=ft.Colors.WHITE,
-                )
-            elif action.startswith("raise"):
-                min_amount = int(action.split("min ")[1].split(")")[0])
-                btn = ft.ElevatedButton(
-                    f"レイズ (最低{min_amount})",
-                    on_click=lambda e, min_amt=min_amount: self._show_raise_dialog(
-                        min_amt
-                    ),
-                    bgcolor=ft.Colors.ORANGE_400,
-                    color=ft.Colors.WHITE,
-                )
-            elif action.startswith("all-in"):
-                amount = int(action.split("(")[1].split(")")[0])
-                btn = ft.ElevatedButton(
-                    f"オールイン ({amount})",
-                    on_click=lambda e, a="all_in", amt=amount: self.handle_action(
-                        a, amt
-                    ),
-                    bgcolor=ft.Colors.PURPLE_400,
-                    color=ft.Colors.WHITE,
-                )
-            else:
-                continue
-
-            self.action_buttons_row.controls.append(btn)
-
-        if self.page:
-            self.page.update()
 
     def _show_raise_dialog(self, min_amount: int):
         """レイズ額入力ダイアログを表示"""
-        self.raise_amount_field.value = str(min_amount)
-        self.raise_amount_field.helper_text = f"最低 {min_amount} チップ"
-        self.raise_dialog.open = True
-        if self.page:
-            self.page.update()
+        with UI_UPDATE_LOCK:
+            self.raise_amount_field.value = str(min_amount)
+            self.raise_amount_field.helper_text = f"最低 {min_amount} チップ"
+            self.raise_dialog.open = True
+            if self.page:
+                self.page.update()
 
     def _close_raise_dialog(self, e):
         """レイズダイアログを閉じる"""
-        self.raise_dialog.open = False
-        if self.page:
-            self.page.update()
-
-    def _confirm_raise(self, e):
-        """レイズを確定"""
-        try:
-            amount = int(self.raise_amount_field.value)
+        with UI_UPDATE_LOCK:
             self.raise_dialog.open = False
             if self.page:
                 self.page.update()
-            self.handle_action("raise", amount)
-        except ValueError:
-            self.raise_amount_field.error_text = "有効な数値を入力してください"
-            if self.page:
-                self.page.update()
+
+    def _confirm_raise(self, e):
+        """レイズを確定"""
+        with UI_UPDATE_LOCK:
+            try:
+                amount = int(self.raise_amount_field.value)
+                self.raise_dialog.open = False
+                if self.page:
+                    self.page.update()
+            except ValueError:
+                self.raise_amount_field.error_text = "有効な数値を入力してください"
+                if self.page:
+                    self.page.update()
+                return
+        # handle_action は内部でロックを取る
+        self.handle_action("raise", amount)
 
     def handle_action(self, action: str, amount: int):
         """プレイヤーアクションを処理"""
         if not self.game:
             return
-
-        success = self.game.process_player_action(
-            self.current_player_id, action, amount
-        )
-        if not success:
-            self.status_text.value = "無効なアクションです"
-            self.status_text.color = ft.Colors.RED
-        else:
-            self.status_text.value = f"アクション実行: {action}"
-            self.status_text.color = ft.Colors.GREEN
-
+        with UI_UPDATE_LOCK:
+            success = self.game.process_player_action(
+                self.current_player_id, action, amount
+            )
+            if not success:
+                self.status_text.value = "無効なアクションです"
+                self.status_text.color = ft.Colors.RED
+            else:
+                self.status_text.value = f"アクション実行: {action}"
+                self.status_text.color = ft.Colors.GREEN
         self.update_display()
         self.update_action_buttons()
 
@@ -1480,176 +1495,180 @@ class GameUI:
 
     def show_phase_transition_confirmation(self):
         """次のフェーズに進む確認を表示"""
-        # 現在のフェーズから次のフェーズを決定
-        next_phase_name = ""
-        if self.game.current_phase == GamePhase.PREFLOP:
-            next_phase_name = "フロップ"
-        elif self.game.current_phase == GamePhase.FLOP:
-            next_phase_name = "ターン"
-        elif self.game.current_phase == GamePhase.TURN:
-            next_phase_name = "リバー"
-        elif self.game.current_phase == GamePhase.RIVER:
-            next_phase_name = "ショーダウン"
+        with UI_UPDATE_LOCK:
+            # 現在のフェーズから次のフェーズを決定
+            next_phase_name = ""
+            if self.game.current_phase == GamePhase.PREFLOP:
+                next_phase_name = "フロップ"
+            elif self.game.current_phase == GamePhase.FLOP:
+                next_phase_name = "ターン"
+            elif self.game.current_phase == GamePhase.TURN:
+                next_phase_name = "リバー"
+            elif self.game.current_phase == GamePhase.RIVER:
+                next_phase_name = "ショーダウン"
 
-        # 確認ボタンを作成
-        continue_button = ft.ElevatedButton(
-            text=f"{next_phase_name}に進む",
-            on_click=self._on_phase_transition_confirmed,
-            bgcolor=ft.Colors.GREEN,
-            color=ft.Colors.WHITE,
-        )
+            # 確認ボタンを作成
+            continue_button = ft.ElevatedButton(
+                text=f"{next_phase_name}に進む",
+                on_click=self._on_phase_transition_confirmed,
+                bgcolor=ft.Colors.GREEN,
+                color=ft.Colors.WHITE,
+            )
 
-        # ステータスメッセージを更新
-        self.status_text.value = (
-            f"ベッティングラウンドが完了しました。{next_phase_name}に進みますか？"
-        )
-        self.status_text.color = ft.Colors.BLUE
+            # ステータスメッセージを更新
+            self.status_text.value = (
+                f"ベッティングラウンドが完了しました。{next_phase_name}に進みますか？"
+            )
+            self.status_text.color = ft.Colors.BLUE
 
-        # アクションボタンを確認ボタンに置き換え
-        self.action_buttons_row.controls.clear()
-        self.action_buttons_row.controls.append(continue_button)
+            # アクションボタンを確認ボタンに置き換え
+            self.action_buttons_row.controls.clear()
+            self.action_buttons_row.controls.append(continue_button)
 
-        # 確認待ちフラグを有効化（他の更新で消されないようにする）
-        self.is_waiting_phase_confirmation = True
+            # 確認待ちフラグを有効化（他の更新で消されないようにする）
+            self.is_waiting_phase_confirmation = True
 
-        # UIを更新
-        if self.page:
-            self.page.update()
+            # UIを更新
+            if self.page:
+                self.page.update()
 
     def _on_phase_transition_confirmed(self, e):
         """フェーズ遷移が確認された際の処理"""
         self.add_debug_message("Player confirmed phase transition")
-        self.phase_transition_confirmed = True
-
-        # 確認待ち終了
-        self.is_waiting_phase_confirmation = False
-
-        # ボタンを削除
-        self.action_buttons_row.controls.clear()
-        self.status_text.value = "次のフェーズに進んでいます..."
-        self.status_text.color = ft.Colors.GREEN
-
-        # UIを更新
-        if self.page:
-            self.page.update()
+        with UI_UPDATE_LOCK:
+            self.phase_transition_confirmed = True
+            # 確認待ち終了
+            self.is_waiting_phase_confirmation = False
+            # ボタンを削除
+            self.action_buttons_row.controls.clear()
+            self.status_text.value = "次のフェーズに進んでいます..."
+            self.status_text.color = ft.Colors.GREEN
+            # UIを更新
+            if self.page:
+                self.page.update()
 
     # ==== ショーダウン結果（インライン） ====
     def show_showdown_results_inline(self, results: Dict[str, Any]):
         """ショーダウン結果をインラインで表示し、下に「次のハンドへ」ボタンを配置する"""
         if not self._showdown_results_column or not self.showdown_overlay_container:
             return
+        with UI_UPDATE_LOCK:
+            self._showdown_results_column.controls.clear()
 
-        self._showdown_results_column.controls.clear()
-
-        # 見出し
-        self._showdown_results_column.controls.append(
-            ft.Text(
-                "🎉 ショーダウン結果",
-                size=16,
-                weight=ft.FontWeight.BOLD,
-                color=ft.Colors.BLACK,
-            )
-        )
-
-        # コミュニティカード（ショーダウン時の場札）
-        try:
-            community_cards = self.game.community_cards if self.game else []
-        except Exception:
-            community_cards = []
-
-        if community_cards:
+            # 見出し
             self._showdown_results_column.controls.append(
-                ft.Text("コミュニティカード", size=12, weight=ft.FontWeight.W_600)
-            )
-            self._showdown_results_column.controls.append(
-                ft.Row(
-                    [self.create_card_widget_small(str(c)) for c in community_cards],
-                    spacing=4,
-                    alignment=ft.MainAxisAlignment.CENTER,
+                ft.Text(
+                    "🎉 ショーダウン結果",
+                    size=16,
+                    weight=ft.FontWeight.BOLD,
+                    color=ft.Colors.BLACK,
                 )
             )
 
-        # 各プレイヤーのハンド表示（あれば）
-        all_hands = results.get("all_hands", [])
-        if all_hands:
+            # コミュニティカード（ショーダウン時の場札）
+            try:
+                community_cards = self.game.community_cards if self.game else []
+            except Exception:
+                community_cards = []
+
+            if community_cards:
+                self._showdown_results_column.controls.append(
+                    ft.Text("コミュニティカード", size=12, weight=ft.FontWeight.W_600)
+                )
+                self._showdown_results_column.controls.append(
+                    ft.Row(
+                        [
+                            self.create_card_widget_small(str(c))
+                            for c in community_cards
+                        ],
+                        spacing=4,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                    )
+                )
+
+            # 各プレイヤーのハンド表示（あれば）
+            all_hands = results.get("all_hands", [])
+            if all_hands:
+                self._showdown_results_column.controls.append(
+                    ft.Text("各プレイヤーのハンド", size=12, weight=ft.FontWeight.W_600)
+                )
+                for hand_info in all_hands:
+                    pid = hand_info.get("player_id")
+                    player_name = self._get_player_name(pid)
+                    cards = hand_info.get("cards", [])
+                    hand_desc = hand_info.get("hand", "")
+
+                    row = ft.Row(
+                        [
+                            ft.Text(player_name, size=12, weight=ft.FontWeight.BOLD),
+                            ft.Row(
+                                [self.create_card_widget_small(c) for c in cards],
+                                spacing=4,
+                            ),
+                            ft.Text(hand_desc, size=11, color=ft.Colors.BLUE_GREY),
+                        ],
+                        spacing=10,
+                        alignment=ft.MainAxisAlignment.START,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    )
+                    self._showdown_results_column.controls.append(row)
+
+            # 勝者と配当
+            results_list = results.get("results", [])
+            if results_list:
+                winners_header = ft.Text("勝者", size=12, weight=ft.FontWeight.W_600)
+                self._showdown_results_column.controls.append(winners_header)
+
+                for r in results_list:
+                    pid = r.get("player_id")
+                    winnings = r.get("winnings", 0)
+                    hand_desc = r.get("hand", "")
+                    player_name = self._get_player_name(pid)
+
+                    winner_row = ft.Row(
+                        [
+                            ft.Text("🏆", size=14),
+                            ft.Text(player_name, size=12, weight=ft.FontWeight.BOLD),
+                            self._create_amount_badge(
+                                winnings, ft.Colors.AMBER_50, ft.Colors.AMBER_800
+                            ),
+                            ft.Text(hand_desc, size=11, color=ft.Colors.BLUE_GREY),
+                        ],
+                        spacing=8,
+                        alignment=ft.MainAxisAlignment.START,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    )
+                    self._showdown_results_column.controls.append(winner_row)
+
+            # 次のハンドへボタン
+            next_button = ft.ElevatedButton(
+                text="次のハンドへ",
+                on_click=self._on_showdown_continue_confirmed,
+                bgcolor=ft.Colors.GREEN,
+                color=ft.Colors.WHITE,
+            )
             self._showdown_results_column.controls.append(
-                ft.Text("各プレイヤーのハンド", size=12, weight=ft.FontWeight.W_600)
-            )
-            for hand_info in all_hands:
-                pid = hand_info.get("player_id")
-                player_name = self._get_player_name(pid)
-                cards = hand_info.get("cards", [])
-                hand_desc = hand_info.get("hand", "")
-
-                row = ft.Row(
-                    [
-                        ft.Text(player_name, size=12, weight=ft.FontWeight.BOLD),
-                        ft.Row(
-                            [self.create_card_widget_small(c) for c in cards], spacing=4
-                        ),
-                        ft.Text(hand_desc, size=11, color=ft.Colors.BLUE_GREY),
-                    ],
-                    spacing=10,
-                    alignment=ft.MainAxisAlignment.START,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ft.Container(
+                    content=next_button,
+                    alignment=ft.alignment.center,
+                    margin=ft.margin.only(top=6),
                 )
-                self._showdown_results_column.controls.append(row)
-
-        # 勝者と配当
-        results_list = results.get("results", [])
-        if results_list:
-            winners_header = ft.Text("勝者", size=12, weight=ft.FontWeight.W_600)
-            self._showdown_results_column.controls.append(winners_header)
-
-            for r in results_list:
-                pid = r.get("player_id")
-                winnings = r.get("winnings", 0)
-                hand_desc = r.get("hand", "")
-                player_name = self._get_player_name(pid)
-
-                winner_row = ft.Row(
-                    [
-                        ft.Text("🏆", size=14),
-                        ft.Text(player_name, size=12, weight=ft.FontWeight.BOLD),
-                        self._create_amount_badge(
-                            winnings, ft.Colors.AMBER_50, ft.Colors.AMBER_800
-                        ),
-                        ft.Text(hand_desc, size=11, color=ft.Colors.BLUE_GREY),
-                    ],
-                    spacing=8,
-                    alignment=ft.MainAxisAlignment.START,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                )
-                self._showdown_results_column.controls.append(winner_row)
-
-        # 次のハンドへボタン
-        next_button = ft.ElevatedButton(
-            text="次のハンドへ",
-            on_click=self._on_showdown_continue_confirmed,
-            bgcolor=ft.Colors.GREEN,
-            color=ft.Colors.WHITE,
-        )
-        self._showdown_results_column.controls.append(
-            ft.Container(
-                content=next_button,
-                alignment=ft.alignment.center,
-                margin=ft.margin.only(top=6),
             )
-        )
 
-        # 表示（テーブル上オーバーレイを表示）
-        self.showdown_overlay_container.visible = True
-        if self.page:
-            self.page.update()
+            # 表示（テーブル上オーバーレイを表示）
+            self.showdown_overlay_container.visible = True
+            if self.page:
+                self.page.update()
 
     def clear_showdown_results_inline(self):
         """ショーダウン結果のインライン表示をクリア"""
         if not self._showdown_results_column or not self.showdown_overlay_container:
             return
-        self._showdown_results_column.controls.clear()
-        self.showdown_overlay_container.visible = False
-        if self.page:
-            self.page.update()
+        with UI_UPDATE_LOCK:
+            self._showdown_results_column.controls.clear()
+            self.showdown_overlay_container.visible = False
+            if self.page:
+                self.page.update()
 
     def _on_showdown_continue_confirmed(self, e):
         """ショーダウン後の『次のハンドへ』が押された"""
@@ -1663,97 +1682,106 @@ class GameUI:
         """ゲーム終了時の最終結果をテーブル上のオーバーレイで表示する"""
         if not self._final_results_column or not self.final_results_overlay_container:
             return
+        with UI_UPDATE_LOCK:
+            self._final_results_column.controls.clear()
 
-        self._final_results_column.controls.clear()
-
-        # 見出し
-        self._final_results_column.controls.append(
-            ft.Text(
-                "🏁 ゲーム結果",
-                size=16,
-                weight=ft.FontWeight.BOLD,
-                color=ft.Colors.BLACK,
-            )
-        )
-
-        # 順位表（所持チップの多い順）
-        standings = []
-        try:
-            standings = sorted(self.game.players, key=lambda p: p.chips, reverse=True)
-        except Exception:
-            standings = []
-
-        if standings:
-            # 勝者
-            winner = standings[0]
+            # 見出し
             self._final_results_column.controls.append(
-                ft.Container(
-                    content=ft.Row(
+                ft.Text(
+                    "🏁 ゲーム結果",
+                    size=16,
+                    weight=ft.FontWeight.BOLD,
+                    color=ft.Colors.BLACK,
+                )
+            )
+
+            # 順位表（所持チップの多い順）
+            standings = []
+            try:
+                standings = sorted(
+                    self.game.players, key=lambda p: p.chips, reverse=True
+                )
+            except Exception:
+                standings = []
+
+            if standings:
+                # 勝者
+                winner = standings[0]
+                self._final_results_column.controls.append(
+                    ft.Container(
+                        content=ft.Row(
+                            [
+                                ft.Text(
+                                    "🏆 WINNER", size=14, weight=ft.FontWeight.BOLD
+                                ),
+                                ft.Text(
+                                    winner.name, size=14, weight=ft.FontWeight.BOLD
+                                ),
+                                self._create_amount_badge(
+                                    winner.chips,
+                                    ft.Colors.AMBER_50,
+                                    ft.Colors.AMBER_800,
+                                ),
+                            ],
+                            spacing=8,
+                            alignment=ft.MainAxisAlignment.CENTER,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                        padding=6,
+                        bgcolor=ft.Colors.AMBER_50,
+                        border=ft.border.all(1, ft.Colors.AMBER_200),
+                        border_radius=8,
+                        margin=ft.margin.only(bottom=6),
+                    )
+                )
+
+                # 全プレイヤー順位
+                self._final_results_column.controls.append(
+                    ft.Text("最終順位", size=12, weight=ft.FontWeight.W_600)
+                )
+                for rank, p in enumerate(standings, start=1):
+                    row = ft.Row(
                         [
-                            ft.Text("🏆 WINNER", size=14, weight=ft.FontWeight.BOLD),
-                            ft.Text(winner.name, size=14, weight=ft.FontWeight.BOLD),
+                            ft.Text(f"#{rank}", size=12, weight=ft.FontWeight.BOLD),
+                            ft.Text(p.name, size=12),
                             self._create_amount_badge(
-                                winner.chips, ft.Colors.AMBER_50, ft.Colors.AMBER_800
+                                p.chips, ft.Colors.GREY_50, ft.Colors.GREY_800
                             ),
                         ],
-                        spacing=8,
-                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=10,
+                        alignment=ft.MainAxisAlignment.START,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                    ),
-                    padding=6,
-                    bgcolor=ft.Colors.AMBER_50,
-                    border=ft.border.all(1, ft.Colors.AMBER_200),
-                    border_radius=8,
-                    margin=ft.margin.only(bottom=6),
-                )
-            )
+                    )
+                    self._final_results_column.controls.append(row)
 
-            # 全プレイヤー順位
+            # 終了ボタン（設定画面へ戻る）
+            back_button = ft.ElevatedButton(
+                text="設定画面に戻る",
+                on_click=lambda e: (
+                    self.on_back_to_setup() if callable(self.on_back_to_setup) else None
+                ),
+                bgcolor=ft.Colors.GREEN,
+                color=ft.Colors.WHITE,
+            )
             self._final_results_column.controls.append(
-                ft.Text("最終順位", size=12, weight=ft.FontWeight.W_600)
-            )
-            for rank, p in enumerate(standings, start=1):
-                row = ft.Row(
-                    [
-                        ft.Text(f"#{rank}", size=12, weight=ft.FontWeight.BOLD),
-                        ft.Text(p.name, size=12),
-                        self._create_amount_badge(
-                            p.chips, ft.Colors.GREY_50, ft.Colors.GREY_800
-                        ),
-                    ],
-                    spacing=10,
-                    alignment=ft.MainAxisAlignment.START,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ft.Container(
+                    content=back_button,
+                    alignment=ft.alignment.center,
+                    margin=ft.margin.only(top=8),
                 )
-                self._final_results_column.controls.append(row)
-
-        # 終了ボタン（設定画面へ戻る）
-        back_button = ft.ElevatedButton(
-            text="設定画面に戻る",
-            on_click=lambda e: (
-                self.on_back_to_setup() if callable(self.on_back_to_setup) else None
-            ),
-            bgcolor=ft.Colors.GREEN,
-            color=ft.Colors.WHITE,
-        )
-        self._final_results_column.controls.append(
-            ft.Container(
-                content=back_button,
-                alignment=ft.alignment.center,
-                margin=ft.margin.only(top=8),
             )
-        )
 
-        # 表示
-        self.final_results_overlay_container.visible = True
-        if self.page:
-            self.page.update()
+            # 表示
+            self.final_results_overlay_container.visible = True
+            if self.page:
+                self.page.update()
 
     def clear_final_results(self):
         """最終結果の表示をクリア"""
         if not self._final_results_column or not self.final_results_overlay_container:
             return
-        self._final_results_column.controls.clear()
-        self.final_results_overlay_container.visible = False
-        if self.page:
-            self.page.update()
+        with UI_UPDATE_LOCK:
+            self._final_results_column.controls.clear()
+            self.final_results_overlay_container.visible = False
+            if self.page:
+                self.page.update()
