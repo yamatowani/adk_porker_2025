@@ -31,18 +31,9 @@ Amount rules (no extra math):
 
 Output (FINAL JSON ONLY; NO OTHER KEYS; no extra text/markdown):
 {
-  "success": true,
   "action": "fold|check|call|raise|all_in",
   "amount": <number>,
   "reasoning": "Brief feel-based explanation using P, H, and board texture (no numeric calculations)."
-}
-
-On error:
-{
-  "success": false,
-  "action": "fold",
-  "amount": 0,
-  "reasoning": "Error description or reason for failure"
 }
 
 Constraints:

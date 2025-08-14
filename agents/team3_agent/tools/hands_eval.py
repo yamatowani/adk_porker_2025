@@ -3,7 +3,7 @@ def evaluate_hands(hand_input: str) -> str:
     Comprehensive Texas Hold'em preflop hand evaluation
 
     Args:
-        hand_input: Format like ["A♥", "4♦"] (using ♥/♦/♣/♠ for suits)
+        hand_input: JSON array format like '["A♥", "4♦"]' (using ♥/♦/♣/♠ for suits)
 
     Returns:
         Evaluation result string with rank and strategic recommendation
@@ -12,19 +12,47 @@ def evaluate_hands(hand_input: str) -> str:
         return "Rank D: Invalid input (Weakest rank - Recommend fold)"
     
     try:
-        cards = hand_input
-        if len(cards) != 2:
-            return "Rank D: Invalid format (Weakest rank - Recommend fold)"
+        # JSON配列形式の文字列をパース
+        if not hand_input.startswith('[') or not hand_input.endswith(']'):
+            return "Rank D: Invalid format - must be JSON array (Weakest rank - Recommend fold)"
+        
+        import json
+        try:
+            cards = json.loads(hand_input)
+        except json.JSONDecodeError:
+            return "Rank D: Invalid JSON format (Weakest rank - Recommend fold)"
+        
+        # カードの検証
+        if not isinstance(cards, list) or len(cards) != 2:
+            return "Rank D: Invalid format - need exactly 2 cards (Weakest rank - Recommend fold)"
         
         card1, card2 = cards
+        
+        # カードの正規化
+        if not isinstance(card1, str) or not isinstance(card2, str):
+            return "Rank D: Invalid card format - must be strings (Weakest rank - Recommend fold)"
+        
+        if len(card1) < 2 or len(card2) < 2:
+            return "Rank D: Invalid card length (Weakest rank - Recommend fold)"
         
         rank1, suit1 = card1[:-1], card1[-1]
         rank2, suit2 = card2[:-1], card2[-1]
         
+        # ランクの正規化
         if rank1 == "10":
             rank1 = "T"
         if rank2 == "10":
             rank2 = "T"
+
+        # 有効なランクとスートのチェック
+        valid_ranks = {"2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"}
+        valid_suits = {"♥", "♦", "♣", "♠"}
+        
+        if rank1 not in valid_ranks or rank2 not in valid_ranks:
+            return "Rank D: Invalid rank (Weakest rank - Recommend fold)"
+        
+        if suit1 not in valid_suits or suit2 not in valid_suits:
+            return "Rank D: Invalid suit (Weakest rank - Recommend fold)"
 
         is_suited = suit1 == suit2
 
