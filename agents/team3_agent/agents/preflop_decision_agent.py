@@ -1,5 +1,7 @@
 from google.adk.agents import Agent
+from pydantic import BaseModel
 from ..tools.hands_eval import evaluate_hands 
+from ..callbacks.after_model_callback import after_model_callback
 
 preflop_decision_agent = Agent(
     model='gemini-2.5-flash-lite',
@@ -73,4 +75,5 @@ preflop_decision_agent = Agent(
 
     **CRITICAL: Return ONLY the JSON object, nothing else!**""",
     tools=[evaluate_hands],
+    after_model_callback=after_model_callback
 )
