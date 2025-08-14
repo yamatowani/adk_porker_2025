@@ -810,7 +810,7 @@ class PokerUI:
         else:
             return "unknown"
 
-    def run_cpu_only_game(self, max_hands: int = 10, display_interval: int = 1):
+    def run_cpu_only_game(self, max_hands: int = 20, display_interval: int = 1):
         """
         全プレイヤーがCPUの自動進行ゲームを実行
 
