@@ -3,7 +3,7 @@ from ..tools.hands_eval import evaluate_hands
 
 preflop_agent = Agent(
     model='gemini-2.5-flash-lite',
-    name="preflop_decision_agent",
+    name="preflop_agent",
     description="Texas Hold'em preflop specialist agent for strategic hand evaluation and decision making",
     instruction="""You are a Texas Hold'em preflop specialist agent.
 
