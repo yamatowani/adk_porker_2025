@@ -14,20 +14,38 @@ root_agent = Agent(
     1. Preflop phase: Delegate to preflop_decision_agent
     2. Post-flop phases: Make comprehensive judgment including community cards
 
-    Preflop Phase Decision:
+    **Preflop Phase Decision:**
     - When phase="preflop", transfer to preflop_decision_agent
     - Sub-agent uses hands_eval tool to evaluate hand rank
     - Adopt sub-agent's JSON response (action, amount, reasoning) as-is
     - Transfer only once and must accept the result
     - IMPORTANT: Never transfer back to beginner_poker_agent from preflop_decision_agent
 
-    Post-flop Phase Decision:
-    - When phase="flop|turn|river", transfer to make_decision_from_percentage_agent
+    **Post-flop Phase Decision:**
+    - When phase="flop|turn|river", transfer to postflop_agent
     - Sub-agent caucuses calculate_role tool to evaluate evaluate role probability
     - Adopt sub-agent's JSON response (action, amount, reasoning) as-is
     - Transfer only once and must accept the result
     - IMPORTANT: Never transfer back to beginner_poker_agent from preflop_decision_agent
 
+    **CRITICAL ERROR HANDLING:**
+    - If sub-agents fail or return success: false, make your own decision
+    - For preflop: Analyze hole cards manually using basic poker knowledge
+      * Pocket pairs (AA, KK, QQ, JJ, TT): Strong hands, raise
+      * High pairs (99, 88, 77): Medium strength, call or raise
+      * Low pairs (66, 55, 44, 33, 22): Weak, fold or check
+      * Suited broadways (AKs, AQs, AJs, KQs): Strong, raise
+      * Offsuit broadways (AKo, AQo, AJo, KQo): Medium, call or raise
+      * Suited connectors (JTs, T9s, 98s): Medium, call
+      * Low suited cards (A2s-A9s): Weak, fold or check
+      * Offsuit low cards: Very weak, fold
+    - For post-flop: Analyze hole cards and community cards
+      * Check for made hands (pairs, three of a kind, straight, flush, etc.)
+      * Look for drawing hands (flush draws, straight draws)
+      * Consider board texture (paired, suited, connected)
+      * Strong made hands: Bet/raise for value
+      * Medium strength: Check/call for pot control
+      * Weak hands: Check/fold
 
     You will receive the following information:
     - Your hole cards
@@ -62,6 +80,6 @@ root_agent = Agent(
     - If preflop_decision_agent fails, make your own decision instead of transferring
     - Always return valid JSON format even if there are errors
     - Use success: false for error cases and success: true for successful decisions""",
-    sub_agents=[preflop_agent,postflop_agent],
+    sub_agents=[preflop_agent,  postflop_agent],
 
 )
