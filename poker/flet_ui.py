@@ -231,6 +231,10 @@ class PokerFletUI:
                                 f"Action success: {success}, Index: {old_player_index} -> {self.game.current_player_index}"
                             )
 
+                            # アクション適用直後にUIを即時更新（フォールド等のステータス反映を遅延させない）
+                            self.game_ui.update_display()
+                            self.game_ui.update_action_buttons()
+
                             if not success:
                                 self.game_ui.add_debug_message(
                                     "Action failed, forcing fold..."
@@ -238,6 +242,9 @@ class PokerFletUI:
                                 self.game.process_player_action(
                                     current_player.id, "fold", 0
                                 )
+                                # 強制フォールド後も即時反映
+                                self.game_ui.update_display()
+                                self.game_ui.update_action_buttons()
 
                             # プレイヤーインデックスが変わらない場合は強制的に次のプレイヤーに進む
                             if (
@@ -248,6 +255,9 @@ class PokerFletUI:
                                     "Player index didn't change, advancing manually..."
                                 )
                                 self.game._advance_to_next_player()
+                                # 手動で次のプレイヤーに進めた場合もUIを更新
+                                self.game_ui.update_display()
+                                self.game_ui.update_action_buttons()
 
                         except Exception as e:
                             self.game_ui.add_debug_message(

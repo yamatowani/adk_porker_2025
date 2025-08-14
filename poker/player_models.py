@@ -609,7 +609,7 @@ class LLMApiPlayer(Player):
                             },
                         },
                         headers={"Content-Type": "application/json"},
-                        timeout=19,  # スレッド側は19秒でタイムアウト
+                        timeout=22,  # スレッド側は22秒でタイムアウト
                     )
                 except Exception as e:
                     return e
@@ -641,7 +641,11 @@ class LLMApiPlayer(Player):
                             self.last_decision_reasoning = (
                                 "20秒経過しても応答がないため、フォールドします"
                             )
-                        return {"action": "fold", "amount": 0}
+                        return {
+                            "action": "fold",
+                            "amount": 0,
+                            "reasoning": "20秒経過しても応答がないため、フォールドします",
+                        }
 
             # スレッド結果の処理
             if isinstance(response, Exception):
@@ -651,7 +655,11 @@ class LLMApiPlayer(Player):
 
             if response is None:
                 logger.error(f"Empty response received for {self.name}")
-                return {"action": "fold", "amount": 0}
+                return {
+                    "action": "fold",
+                    "amount": 0,
+                    "reasoning": "20秒経過しても応答がないため、フォールドします",
+                }
 
             if response.status_code != 200:
                 logger.error(
@@ -667,7 +675,11 @@ class LLMApiPlayer(Player):
                     }, indent=2)}"
                     )
                 # 失敗時はフォールドで安全に進行
-                return {"action": "fold", "amount": 0}
+                return {
+                    "action": "fold",
+                    "amount": 0,
+                    "reasoning": "20秒経過しても応答がないため、フォールドします",
+                }
 
             # 正常応答
             try:
