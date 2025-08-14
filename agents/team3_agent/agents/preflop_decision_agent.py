@@ -1,7 +1,7 @@
 from google.adk.agents import LlmAgent
 from pydantic import BaseModel, Field
-from ..callbacks.after_model_callback import before_model_callback
 from google.adk.models.lite_llm import LiteLlm
+
 class OutputSchema(BaseModel):
   action: str = Field(description="Action to take")
   amount: int = Field(description="Amount to bet/call (0 for fold/check)")
@@ -106,5 +106,4 @@ preflop_decision_agent = LlmAgent(
 
     **CRITICAL: Return ONLY the JSON object, nothing else! No text before, no text after, just the JSON!**""",
     output_schema=OutputSchema,
-    before_model_callback=before_model_callback
 )
