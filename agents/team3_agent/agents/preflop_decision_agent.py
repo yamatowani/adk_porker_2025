@@ -15,7 +15,7 @@ preflop_decision_agent = Agent(
     - You MUST NOT transfer to other agents
 
     Process:
-    1. Extract your_cards from input (e.g., ["A♥", "4♦"])
+    1. Extract your_cards from input (e.g., ["Ah", "4d"])
     2. Convert cards to JSON array string format for evaluate_hands tool
     3. Use evaluate_hands tool to get hand rank evaluation (for reference only)
     4. Analyze game situation comprehensively (pot, bet to call, position, stack sizes, etc.)
@@ -23,7 +23,7 @@ preflop_decision_agent = Agent(
     6. Return ONLY JSON format
 
     Available Tools:
-    - evaluate_hands: Evaluate hand rank (input format: '["A♥", "4♦"]' - JSON array string)
+    - evaluate_hands: Evaluate hand rank (input format: '["Ah", "4d"]' - JSON array string)
 
     **MANDATORY JSON RESPONSE FORMAT:**
     {
@@ -89,7 +89,7 @@ preflop_decision_agent = Agent(
     - Make decisions based on position, pot odds, and overall situation
     - Hand rank is reference only - don't rely solely on it
     - Consider stack sizes and opponent tendencies
-    - Pass cards to evaluate_hands as JSON array string (e.g., '["A♥", "4♦"]')
+    - Pass cards to evaluate_hands as JSON array string (e.g., '["Ah", "4d"]')
     - Always include action, amount, and reasoning in JSON response
 
     **EXAMPLE RESPONSES:**
