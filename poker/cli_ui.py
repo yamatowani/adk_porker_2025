@@ -61,6 +61,9 @@ class PokerUI:
 
         # アクション履歴（最新3件）
         self._display_recent_actions()
+        
+        # 統計情報（簡易版）
+        self._display_current_stats()
 
     def _get_phase_name(self, phase: GamePhase) -> str:
         """フェーズ名を日本語で取得"""
@@ -362,7 +365,7 @@ class PokerUI:
         self.display_welcome_message()
 
         # ゲームセットアップ
-        self.game = PokerGame()
+        self.game = PokerGame(max_hands=20)  # デフォルトゲーム用
         self.game.setup_default_game()
 
         try:
@@ -514,7 +517,7 @@ class PokerUI:
             return
 
         # ゲームセットアップ
-        self.game = PokerGame()
+        self.game = PokerGame(max_hands=max_hands)
         self.game.setup_configurable_game_with_models(player_configs)
 
         # 統計情報の初期化
@@ -714,6 +717,9 @@ class PokerUI:
 
             print(f"\n{'='*70}")
 
+            # プレイヤー統計の表示
+            self._display_player_stats()
+
         except KeyboardInterrupt:
             print("\n\nエージェント専用モードを中断しました。")
         except Exception as e:
@@ -817,7 +823,7 @@ class PokerUI:
         print(f"最大{max_hands}ハンドまで実行します\n")
 
         # ゲームセットアップ
-        self.game = PokerGame()
+        self.game = PokerGame(max_hands=max_hands)
         self.game.setup_cpu_only_game()
 
         import time
@@ -948,8 +954,47 @@ class PokerUI:
                 winner = max(active_players, key=lambda p: p.chips)
                 print(f"\n🏆 優勝: {winner.name} ({winner.chips}チップ)")
 
+            # プレイヤー統計の表示
+            self._display_player_stats()
+
         except KeyboardInterrupt:
             print("\n\nCPU専用ゲームを中断しました。")
         except Exception as e:
             print(f"\nエラーが発生しました: {e}")
             print("ゲームを終了します。")
+
+    def _display_player_stats(self):
+        """プレイヤー統計を表示"""
+        if not self.game or not hasattr(self.game, 'stats_manager'):
+            return
+            
+        print("\n" + "=" * 60)
+        print("📊 プレイヤー統計")
+        print("=" * 60)
+        
+        all_stats = self.game.stats_manager.get_all_stats()
+        
+        for player_id, stats in all_stats.items():
+            print(f"\n🎯 {stats['player_name']} (ID: {player_id})")
+            print(f"   PPR (プリフロップ参加率): {stats['ppr']:.2%}")
+            print(f"   プリフロップ参加後勝利率: {stats['post_preflop_win_rate']:.2%}")
+            print(f"   プリフロップ参加回数: {stats['preflop_stats']['participated']}/{stats['preflop_stats']['total_hands']}")
+            print(f"   プリフロップ参加後勝利回数: {stats['post_preflop_stats']['wins']}/{stats['post_preflop_stats']['hands']}")
+            
+            print("   📈 アクション統計:")
+            for action, count in stats['action_counts'].items():
+                print(f"     {action}: {count}回")
+                
+        print("\n" + "=" * 60)
+
+    def _display_current_stats(self):
+        """現在の統計情報を簡易表示"""
+        if not self.game or not hasattr(self.game, 'stats_manager'):
+            return
+            
+        print("\n📊 現在の統計:")
+        all_stats = self.game.stats_manager.get_all_stats()
+        
+        for player_id, stats in all_stats.items():
+            if stats['preflop_stats']['total_hands'] > 0:
+                print(f"  {stats['player_name']}: PPR {stats['ppr']:.1%}, 勝率 {stats['post_preflop_win_rate']:.1%}")

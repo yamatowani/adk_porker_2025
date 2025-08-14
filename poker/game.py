@@ -18,6 +18,7 @@ from .player_models import (
     PlayerStatus,
 )
 from .evaluator import HandEvaluator, HandResult
+from .player_stats import PlayerStatsManager, ActionType
 
 # ゲーム専用のロガーを設定
 game_logger = logging.getLogger("poker_game")
@@ -37,7 +38,7 @@ class PokerGame:
     """テキサスホールデムゲーム管理クラス"""
 
     def __init__(
-        self, small_blind: int = 10, big_blind: int = 20, initial_chips: int = 2000
+        self, small_blind: int = 10, big_blind: int = 20, initial_chips: int = 2000, max_hands: int = None
     ):
         self.small_blind = small_blind
         self.big_blind = big_blind
@@ -68,6 +69,9 @@ class PokerGame:
         # ゲーム統計
         self.game_stats = {"hands_played": 0, "players_eliminated": []}
 
+        # プレイヤー統計管理
+        self.stats_manager = PlayerStatsManager(max_hands=max_hands)
+
         # 最後に実行したショーダウン結果（観戦UI向けに公開するため）
         self.last_showdown_results: Optional[Dict[str, Any]] = None
 
@@ -83,6 +87,9 @@ class PokerGame:
         if len(self.players) >= 10:
             raise ValueError("Maximum 10 players allowed")
         self.players.append(player)
+        
+        # 統計管理にプレイヤーを登録
+        self.stats_manager.register_player(player.id, player.name)
 
     def get_player(self, player_id: int) -> Optional[Player]:
         """プレイヤーIDでプレイヤーを取得"""
@@ -213,6 +220,10 @@ class PokerGame:
             game_logger.info("Not enough players - setting phase to FINISHED")
             self.current_phase = GamePhase.FINISHED
             return
+            
+        # 統計管理のハンド開始処理
+        active_players = [i for i, p in enumerate(self.players) if p.status != PlayerStatus.BUSTED]
+        self.stats_manager.record_hand_start(active_players)
 
         # ディーラーボタンを移動
         game_logger.info("Moving dealer button")
@@ -545,6 +556,9 @@ class PokerGame:
         # アクション履歴に追加
         self.action_history.append(action_description)
         game_logger.info(f"ACTION_EXECUTED: {action_description}")
+        
+        # 統計管理にアクションを記録
+        self._record_action_for_stats(player, action, amount)
 
         self._log_game_state("AFTER_ACTION", f"Action: {action_description}")
 
@@ -561,6 +575,29 @@ class PokerGame:
         )
 
         return True
+
+    def _record_action_for_stats(self, player: Player, action: str, amount: int = 0):
+        """統計管理にアクションを記録"""
+        phase = self.current_phase.value.lower()
+        
+        # アクションタイプを判定
+        if action == "fold":
+            action_type = ActionType.FOLD
+        elif action == "check":
+            action_type = ActionType.CHECK
+        elif action == "call":
+            action_type = ActionType.CALL
+        elif action == "bet":
+            action_type = ActionType.BET
+        elif action == "raise":
+            action_type = ActionType.RAISE
+        elif action == "all_in":
+            action_type = ActionType.ALL_IN
+        else:
+            # 不明なアクションはスキップ
+            return
+            
+        self.stats_manager.record_action(player.id, action_type, phase, amount)
 
     def _advance_to_next_player(self):
         """次のアクティブプレイヤーに移動（座席順序を維持）"""
@@ -784,6 +821,17 @@ class PokerGame:
             game_logger.info("Going to SHOWDOWN - only 1 or fewer players remaining")
             self.current_phase = GamePhase.SHOWDOWN
             self._log_game_state("PHASE_CHANGED_TO_SHOWDOWN")
+            
+            # ハンド終了時の統計を記録
+            if len(remaining_players) == 1:
+                # 1人だけ残っている場合、そのプレイヤーが勝者
+                winner = remaining_players[0]
+                self.stats_manager.record_hand_end([winner.id], self.current_phase.value.lower())
+            else:
+                # 全員フォールドした場合、最後にアクションしたプレイヤーが勝者
+                # この場合は統計を記録しない（実際には全員フォールドの場合は勝者がいない）
+                pass
+            
             return True
 
         old_phase = self.current_phase
@@ -1061,6 +1109,10 @@ class PokerGame:
             ],
         }
         self.last_showdown_results = result
+        
+        # 統計管理にハンド結果を記録
+        self.stats_manager.record_hand_end(result["winners"], self.current_phase.value.lower())
+        
         return result
 
     def is_game_over(self) -> bool:
@@ -1100,6 +1152,7 @@ class PokerGame:
             ],
             "action_history": self.action_history,
             "game_stats": self.game_stats,
+            "player_stats": self.stats_manager.export_stats(),
         }
 
         with open(filename, "w", encoding="utf-8") as f:

@@ -118,7 +118,7 @@ def main():
                 # エージェント専用モードを実行
                 print("エージェント専用モードで実行します...")
                 max_hands = (
-                    args.max_hands if args.max_hands != 10 else 20
+                    args.max_hands if args.max_hands != 10 else 3
                 )  # エージェント専用モードのデフォルトは20
                 ui.run_agent_only_mode(max_hands=max_hands, agents_config=args.agents)
             else:
