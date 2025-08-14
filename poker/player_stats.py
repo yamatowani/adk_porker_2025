@@ -37,8 +37,8 @@ class PlayerActionStats:
         """アクションを記録"""
         self.action_counts[action_type] += 1
         
-        # プリフロップでアクションを取った場合
-        if phase == "preflop":
+        # プリフロップでアクションを取った場合（フォールド以外）
+        if phase == "preflop" and action_type != ActionType.FOLD:
             self.preflop_actions_this_hand = True
             
     def record_preflop_participation(self, participated: bool):
@@ -132,7 +132,7 @@ class PlayerStatsManager:
         # 実際にプリフロップでアクションを取ったプレイヤーのみを参加としてカウント
         for player_id in self.player_stats.keys():
             player_stats = self.player_stats[player_id]
-            # プリフロップでアクションを取ったかどうかで参加判定
+            # プリフロップでフォールド以外のアクションを取ったかどうかで参加判定
             participated = player_stats.preflop_actions_this_hand
             self.player_stats[player_id].record_preflop_participation(participated)
             
