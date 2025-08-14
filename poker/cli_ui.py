@@ -511,24 +511,24 @@ class PokerUI:
             print("デフォルト設定を使用します...")
             player_configs = [
                 {
-                    "type": "llm",
-                    "model": "gemini-2.5-flash-lite",
+                    "type": "llm_api",
                     "agent_id": "team1_agent",
+                    "user_id": "player_0",
                 },
                 {
-                    "type": "llm",
-                    "model": "gemini-2.5-flash-lite",
+                    "type": "llm_api",
                     "agent_id": "team1_agent",
+                    "user_id": "player_1",
                 },
                 {
-                    "type": "llm",
-                    "model": "gemini-2.5-flash-lite",
+                    "type": "llm_api",
                     "agent_id": "team2_agent",
+                    "user_id": "player_2",
                 },
                 {
-                    "type": "llm",
-                    "model": "gemini-2.5-flash-lite",
+                    "type": "llm_api",
                     "agent_id": "team2_agent",
+                    "user_id": "player_3",
                 },
             ]
 
@@ -789,9 +789,9 @@ class PokerUI:
             for i in range(count):
                 player_configs.append(
                     {
-                        "type": "llm",
-                        "model": "gemini-2.5-flash-lite",
+                        "type": "llm_api",
                         "agent_id": agent_name,
+                        "user_id": f"player_{player_id}",
                     }
                 )
                 player_id += 1
