@@ -12,7 +12,6 @@ preflop_agent = Agent(
     - Do not transfer to other agents. Always make decisions yourself. 
     - Never transfer back to beginner_poker_agent
     - If you receive a non-preflop phase, return an error response
-    - CRITICAL: Respond with ONLY JSON format, no text explanations
 
     Process:
     1. Verify that phase="preflop" in the input data
@@ -36,6 +35,11 @@ preflop_agent = Agent(
     - C Rank: Choose between call or raise (based on pot odds and position)
     - D Rank: Generally fold, but check if possible
     
+    Additional Instructions:
+    - Never fold when you can check
+    - Adjust raise amounts between 60-120 chips
+    - Call if there's a raise higher than the specified range
+    
     Position Strategy:
     - BTN, CO: Play more aggressively
     - MP: Moderate aggression
@@ -49,8 +53,6 @@ preflop_agent = Agent(
     4. Consider other players' actions
     5. Consider position and pot odds
     
-    CRITICAL: Always respond with ONLY the JSON format, no additional text or explanations before or after the JSON.
-
     Always respond in this JSON format:
     {
       "success": true,
@@ -62,9 +64,9 @@ preflop_agent = Agent(
     If there's an error or you cannot make a decision, respond with:
     {
       "success": false,
-      "action": "fold",
+      "action": "fold|check|call|raise|all_in",
       "amount": 0,
-      "reasoning": "Error description or reason for failure"
+      "reasoning": "Error description or reason for failure. Please reasoning about the decision in root agent"
     }
 
     Important Rules:
@@ -73,6 +75,6 @@ preflop_agent = Agent(
     - Strictly follow JSON format
     - Never transfer to other agents
     - CRITICAL: If you cannot process the request, return a valid JSON with success: false and fold action instead of transferring
-    - CRITICAL: Respond with ONLY JSON, no text explanations or markdown formatting""",
+    - CRITICAL: If phase is not "preflop", return error response with success: false""",
     tools=[evaluate_hands],
 )
