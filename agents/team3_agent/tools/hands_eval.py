@@ -49,7 +49,7 @@ def evaluate_hands(hand_input: str) -> str:
             return f"Rank S: {hand_notation} (Premium hand - Always raise/call)"
 
         a_rank_hands = {
-            "ATo", "A9s", "A8s", "A7s", "A5s", "A4s", "A3s", "A2s", 
+            "AJo", "ATo", "A9s", "A8s", "A7s", "A5s", "A4s", "A3s", "A2s", 
             "KJs", "KTs", "K9s","KQo", "QJs", "QTs", "AJo", "KJo", "T9s", "JTs", 
             "88", "77", "66", "55", 
         }

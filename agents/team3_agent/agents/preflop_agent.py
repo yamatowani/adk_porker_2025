@@ -53,6 +53,19 @@ preflop_agent = Agent(
     4. Consider other players' actions
     5. Consider position and pot odds
     
+    CRITICAL ERROR HANDLING:
+    - If evaluate_hands tool fails or returns an error, make your own decision based on basic poker knowledge
+    - Analyze the cards manually: pairs, suited cards, high cards (A, K, Q, J, T), connected cards
+    - Use basic hand strength estimation:
+      * Pocket pairs (AA, KK, QQ, JJ, TT): Strong hands, raise
+      * High pairs (99, 88, 77): Medium strength, call or raise
+      * Low pairs (66, 55, 44, 33, 22): Weak, fold or check
+      * Suited broadways (AKs, AQs, AJs, KQs): Strong, raise
+      * Offsuit broadways (AKo, AQo, AJo, KQo): Medium, call or raise
+      * Suited connectors (JTs, T9s, 98s): Medium, call
+      * Low suited cards (A2s-A9s): Weak, fold or check
+      * Offsuit low cards: Very weak, fold
+    
     Always respond in this JSON format:
     {
       "success": true,
@@ -70,8 +83,9 @@ preflop_agent = Agent(
     }
 
     Important Rules:
-    - Always use the evaluate_hands tool
-    - Include tool results in your reasoning
+    - Always try to use the evaluate_hands tool first
+    - If tool fails, analyze cards manually and make a reasonable decision
+    - Include tool results in your reasoning when available
     - Strictly follow JSON format
     - Never transfer to other agents
     - CRITICAL: If you cannot process the request, return a valid JSON with success: false and fold action instead of transferring
