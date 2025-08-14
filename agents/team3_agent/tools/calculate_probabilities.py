@@ -4,7 +4,7 @@ from itertools import combinations
 from ..utils.card_utils import *
 
 
-def calculate_hand_probabilities(your_cards: List[str], community: List[str], phase: str = "") -> Dict[str, float]:
+def calculate_hand_probabilities(your_cards: List[str], community: List[str], phase: str = "") -> dict:
     """
     Returns only the probability distribution (%) of each final hand that can be achieved
     given the current hole cards and community cards, after the remaining streets (turn/river).
@@ -16,10 +16,7 @@ def calculate_hand_probabilities(your_cards: List[str], community: List[str], ph
             If omitted, it is inferred from the number of community cards.
 
     Returns:
-        Dict[str, float]: Mapping from hand name to probability (%).
-            Returns a distribution only on the flop/turn;
-            on the river it is fully determined (100%),
-            and on preflop it returns {}.
+        dict: "probably_hand: "most probably hand", "expected_value": expected value of the hand.
     """
     try:
         if not your_cards or len(your_cards) != 2:
@@ -32,40 +29,46 @@ def calculate_hand_probabilities(your_cards: List[str], community: List[str], ph
         except Exception:
             return {}
 
-        # ステージ判定（phaseが正しい形式なら優先、なければ公開札の枚数から）
-        stage = (phase or "").lower()
-        if stage not in ("preflop", "flop", "turn", "river"):
-            n = len(community_cards)
-            stage = "preflop" if n == 0 else "flop" if n == 3 else "turn" if n == 4 else "river" if n >= 5 else "invalid"
-
         # 残りデッキ
         deck = build_deck_excluding(hole_cards + community_cards)
 
         # 役確率だけ返す
-        if stage == "flop":
+        if phase == "flop":
             total = 0
             counts: Dict[str, int] = {}
             for c1, c2 in combinations(deck, 2):
                 total += 1
                 name, _ = evaluate_hand_category(hole_cards, community_cards + [c1, c2])
                 counts[name] = counts.get(name, 0) + 1
-            print(f"Flop stage: {total} combinations evaluated.")
-            return {k: round(v * 100.0 / total, 2) for k, v in counts.items()} if total else {"empty": 100}
 
-        if stage == "turn":
-            total = len(deck)
-            counts: Dict[str, int] = {}
-            for c in deck:
-                name, _ = evaluate_hand_category(hole_cards, community_cards + [c])
-                counts[name] = counts.get(name, 0) + 1
-            return {k: round(v * 100.0 / total, 2) for k, v in counts.items()} if total else {}
+            if total == 0:
+                return {"probably_hand": "", "expected_value": 0.0}
 
-        if stage == "river":
+            probs = {k: v / total for k, v in counts.items()}
+            probably_hand, _ = max(probs.items(), key=lambda kv: kv[1])
+            ev = sum(p * HAND_WEIGHTS.get(hand, 0.0) for hand, p in probs.items())
+
+            return {"probably_hand": probably_hand, "expected_value": round(ev, 4)}
+
+        if phase == "turn":
+            total += 1
+            name, _ = evaluate_hand_category(hole_cards, community_cards + [c1, c2])
+            counts[name] = counts.get(name, 0) + 1
+
+            if total == 0:
+                return {"probably_hand": "", "expected_value": 0.0}
+
+            probs = {k: v / total for k, v in counts.items()}
+            probably_hand, _ = max(probs.items(), key=lambda kv: kv[1])
+            ev = sum(p * HAND_WEIGHTS.get(hand, 0.0) for hand, p in probs.items())
+
+            return {"probably_hand": probably_hand, "expected_value": round(ev, 4)}
+
+        if phase == "river":
             name, _ = evaluate_hand_category(hole_cards, community_cards)
-            return {name: 100.0}
+            ev = HAND_WEIGHTS.get(name, 0.0)
+            return {"probably_hand": name, "expected_value": float(ev)}
 
-        # preflop や invalid
         return {}
     except Exception as e:
-        print(f"Error calculating hand probabilities: {e}")
         return {}
