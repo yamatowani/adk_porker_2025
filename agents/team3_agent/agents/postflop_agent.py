@@ -1,9 +1,9 @@
 from google.adk.agents import Agent
 from ..tools.calculate_probabilities import calculate_hand_probabilities
 from ..tools.monte_carlo_probabilities import monte_carlo_probabilities
-
+from google.adk.models.lite_llm import LiteLlm
 postflop_agent = Agent(
-  model = "gemini-2.5-flash-lite",
+  model = LiteLlm(model="openai/gpt-4.1"),
   name="postflop_agent",
   description="Post-flop decision agent that bases its action only on tool outputs from calculate_hand_probabilities and monte_carlo_probabilities (no self math). Chooses among the provided actions, sets amounts by the strings in actions, and returns the final JSON.",
   instruction="""Internal post-flop decision agent (feel-based). Do not perform your own numeric math (no EV/pot-odds). Use only the two tools’ outputs and simple comparisons. The parent makes the final decision.

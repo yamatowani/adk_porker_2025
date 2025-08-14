@@ -1,14 +1,14 @@
 from google.adk.agents import LlmAgent
 from pydantic import BaseModel, Field
 from ..callbacks.after_model_callback import before_model_callback
-
+from google.adk.models.lite_llm import LiteLlm
 class OutputSchema(BaseModel):
   action: str = Field(description="Action to take")
   amount: int = Field(description="Amount to bet/call (0 for fold/check)")
   reasoning: str = Field(description="Brief explanation of decision")
 
 preflop_decision_agent = LlmAgent(
-    model='gemini-2.5-flash-lite',
+    model = LiteLlm(model="openai/gpt-4.1"),
     name="preflop_decision_agent",
     description="Texas Hold'em preflop decision specialist with guaranteed JSON response",
     instruction="""You are a Texas Hold'em preflop decision specialist.

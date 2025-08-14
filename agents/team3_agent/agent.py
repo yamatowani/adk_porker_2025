@@ -3,10 +3,12 @@ from .agents.preflop_decision_agent import preflop_decision_agent
 from .agents.postflop_agent import postflop_agent
 from .tools.parse_suit import parse_suit
 from .tools.position_check import position_check
+from google.adk.models.lite_llm import LiteLlm
+
 
 root_agent = Agent(
   name="root_agent",
-  model="gemini-2.5-flash-lite",
+  model=LiteLlm(model="openai/gpt-4.1"),
   description="""Normalizes card suits using the parse_suit tool and then delegates the normalized game state to exactly one sub-agent based on phase: preflop_decision_agent for preflop, postflop_agent for flop/turn/river. Returns only the chosen sub-agent’s JSON.""",
   instruction="""
 You are the ROOT ROUTER. Your final output MUST be exactly the JSON returned by the chosen sub-agent. Do NOT add any extra text.
@@ -20,7 +22,7 @@ STEP 2 — POSITION CHECK (MUST, exactly once)
 Call tool: position_check(
   your_id=<input.your_id>,
   dealer_button=<input.dealer_button>,
-  player_num=<len(input.players) if available else input.player_num>
+  player_num=<len(input.players)+1 if available else input.player_num>
 ).
 - On success, add the returned dict under "position_info" in the payload (do not remove original fields).
 - On failure, add "position_check_error": "<tool error>" and continue.
