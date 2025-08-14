@@ -8,7 +8,7 @@ from google.adk.models.lite_llm import LiteLlm
 
 root_agent = Agent(
   name="root_agent",
-  model=LiteLlm(model="openai/gpt-4.1"),
+  model=LiteLlm(model="openai/gpt-4o"),
   description="""Normalizes card suits using the parse_suit tool and then delegates the normalized game state to exactly one sub-agent based on phase: preflop_decision_agent for preflop, postflop_agent for flop/turn/river. Returns only the chosen sub-agent’s JSON.""",
   instruction="""
 You are the ROOT ROUTER. Your final output MUST be exactly the JSON returned by the chosen sub-agent. Do NOT add any extra text.
