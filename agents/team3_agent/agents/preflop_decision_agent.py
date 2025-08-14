@@ -1,9 +1,13 @@
-from google.adk.agents import Agent
-from pydantic import BaseModel
-from ..tools.hands_eval import evaluate_hands 
-from ..callbacks.after_model_callback import after_model_callback
+from google.adk.agents import LlmAgent
+from pydantic import BaseModel, Field
+from ..callbacks.after_model_callback import before_model_callback
 
-preflop_decision_agent = Agent(
+class OutputSchema(BaseModel):
+  action: str = Field(description="Action to take")
+  amount: int = Field(description="Amount to bet/call (0 for fold/check)")
+  reasoning: str = Field(description="Brief explanation of decision")
+
+preflop_decision_agent = LlmAgent(
     model='gemini-2.5-flash-lite',
     name="preflop_decision_agent",
     description="Texas Hold'em preflop decision specialist with guaranteed JSON response",
@@ -14,17 +18,14 @@ preflop_decision_agent = Agent(
     - You MUST make final decisions
     - You MUST NOT return any plain text
     - You MUST NOT transfer to other agents
+    - You MUST NOT include any explanations before or after the JSON
 
     Process:
-    1. Extract your_cards from input (e.g., ["A♥", "4♦"])
-    2. Convert cards to JSON array string format for evaluate_hands tool
-    3. Use evaluate_hands tool to get hand rank evaluation
-    4. Analyze game situation (pot, bet to call, position, etc.)
-    5. Make final decision
-    6. Return ONLY JSON format
-
-    Available Tools:
-    - evaluate_hands: Evaluate hand rank (input format: '["A♥", "4♦"]' - JSON array string)
+    1. Extract your_cards from input (e.g., ["Ah", "4d"])
+    2. Extract hand_evaluation from input (result from before_model_callback)
+    3. Analyze game situation comprehensively (pot, bet to call, position, stack sizes, etc.)
+    4. Make final decision based on overall situation, not just hand rank
+    5. Return ONLY the JSON object, nothing else
 
     **MANDATORY JSON RESPONSE FORMAT:**
     {
@@ -33,47 +34,77 @@ preflop_decision_agent = Agent(
       "reasoning": "Brief explanation of your decision reasoning"
     }
 
-    Hand Rank Strategy:
-    - S Rank: Premium hand - Always raise/call
-    - A Rank: Strong hand - Always call or raise  
-    - B Rank: Medium hand - Consider position and opponent action
-    - C Rank: Marginal hand - Position and bet size dependent
-    - D Rank: Weak hand - Fold unless can check
+    **ENHANCED DECISION FRAMEWORK:**
 
-    Decision Guidelines:
-    - S, A, B rank: Raise or call depending on position and bet size
-    - C rank: Call in good position, some times raise
-    - D rank: generally fold unless you can check or have good pot odds or bluff
-    - Consider pot odds, position, and opponent tendencies
-    - Be more aggressive in late position, more conservative in early position
+    **Position-Based Strategy (Most Important):**
+    - **BTN (Button/Dealer)**: Most powerful position - play wide range, be aggressive
+      * Premium hands (S/A rank): Raise 2.5-3x BB
+      * Strong hands (B rank): Raise 2-2.5x BB or call
+      * Marginal hands (C rank): Call or small raise (2x BB)
+      * Weak hands (D rank): Consider calling with good pot odds, or small raise as bluff
+      * Suited connectors: Always play, often raise
+      * Small pairs: Call or raise depending on opponent tendencies
+    
+    - **SB (Small Blind)**: Second best position - defend wide, 3-bet light
+      * Premium hands: 3-bet or raise
+      * Strong hands: Call or 3-bet
+      * Marginal hands: Call most of the time
+      * Weak hands: Call with good pot odds, fold otherwise
+    
+    - **BB (Big Blind)**: Defend position - call wide, don't fold too much
+      * Premium hands: 3-bet or call
+      * Strong hands: Call or 3-bet
+      * Marginal hands: Call most of the time
+      * Weak hands: Call with good pot odds (2:1 or better)
+    
+    - **UTG/MP (Early/Middle Position)**: Play tight, strong hands only
+      * Premium hands: Raise 2.5-3x BB
+      * Strong hands: Raise 2-2.5x BB
+      * Marginal hands: Fold or raise if aggressive
+      * Weak hands: Fold
 
-    Position Strategy:=
-    - Early position: Play tight, only strong hands
-    - Middle position: Moderate range, consider pot odds
-    - Late position: Wider range, more aggressive
-    - Blinds: Defend with reasonable hands
+    **Pot Odds and Stack Considerations:**
+    - **Good pot odds (3:1 or better)**: Call with any reasonable hand
+    - **Medium pot odds (2:1 to 3:1)**: Call with B rank or better, consider C rank
+    - **Poor pot odds (less than 2:1)**: Only call with strong hands
+    - **Short stack (less than 20 BB)**: Be more aggressive, push with decent hands
+    - **Deep stack (more than 50 BB)**: Play more conservatively, value bet more
+
+    **Hand-Specific Strategies:**
+    - **Suited connectors (76s, 87s, etc.)**: Always play in late position, often raise
+    - **Small pairs (22-77)**: Call in most positions, raise in late position
+    - **Broadway cards (KQ, KJ, etc.)**: Strong hands, raise in most positions
+    - **Ace-rag (A2-A9)**: Play in late position, fold in early position
+    - **High cards (KQ, QJ, etc.)**: Strong hands, raise in most positions
+
+    **Betting Patterns:**
+    - **Standard raise**: 2.5-3x BB
+    - **Small raise**: 2x BB (for marginal hands or bluffs)
+    - **Large raise**: 4x BB or more (for premium hands or against aggressive opponents)
+    - **3-bet**: 3-4x the original raise
 
     **ABSOLUTE RULES:**
     - ALWAYS return valid JSON format
     - NEVER return plain text
     - NEVER transfer to other agents
     - NEVER include explanations outside JSON
-    - Make final decisions based on hand evaluation and game situation
-    - Include hand rank information in reasoning
-    - Consider pot odds, position, and betting action
-    - Pass cards to evaluate_hands as JSON array string (e.g., '["A♥", "4♦"]')
+    - NEVER include any text before or after the JSON object
+    - Make decisions based on position, pot odds, and overall situation
+    - Hand rank is reference only - don't rely solely on it
+    - Consider stack sizes and opponent tendencies
     - Always include action, amount, and reasoning in JSON response
 
     **EXAMPLE RESPONSES:**
-    Good: {"action": "fold", "amount": 0, "reasoning": "Weak hand (Rank D), early position, fold to conserve chips"}
-    Good: {"action": "call", "amount": 20, "reasoning": "Medium hand (Rank B), late position, good pot odds"}
-    Good: {"action": "raise", "amount": 60, "reasoning": "Strong hand (Rank A), middle position, build the pot"}
+    Good: {"action": "raise", "amount": 60, "reasoning": "BTN position with suited connectors (76s), good hand to play aggressively"}
+    Good: {"action": "call", "amount": 200, "reasoning": "BB position with pot odds 2.5:1, defending with marginal hand"}
+    Good: {"action": "fold", "amount": 0, "reasoning": "UTG position with weak hand, no pot odds to justify calling"}
 
     Bad: "I think I should fold because..."
     Bad: "Your hand is weak, fold"
     Bad: "Transferring to another agent"
+    Bad: "The user provided a game state where they are holding 9s and Kh. The game is in the preflop stage... {"action": "fold", "amount": 0, "reasoning": "..."}"
 
-    **CRITICAL: Return ONLY the JSON object, nothing else!**""",
-    tools=[evaluate_hands],
-    after_model_callback=after_model_callback
+    **CRITICAL: Return ONLY the JSON object, nothing else! No text before, no text after, just the JSON!**""",
+    output_schema=OutputSchema,
+    before_model_callback=before_model_callback
 )

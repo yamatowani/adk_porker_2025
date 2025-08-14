@@ -3,11 +3,80 @@ from pydantic import BaseModel
 import json
 import re
 from typing import Any, Dict, Optional
+from ..tools.hands_eval import evaluate_hands
 
 class PreflopDecision(BaseModel):
     action: str
     amount: int
     reasoning: str
+
+def before_model_callback(callback_context: Any, llm_request: Any) -> Optional[Any]:
+    """
+    LLMが呼ばれる前にハンド評価を実行するコールバック
+    
+    Args:
+        callback_context: コールバックコンテキスト
+        llm_request: LLMリクエスト（入力データを含む）
+    
+    Returns:
+        modified_request: ハンド評価結果を含む修正されたリクエスト
+    """
+    try:
+        # プレフロップ決定エージェントの場合のみ実行
+        if hasattr(callback_context, 'agent') and hasattr(callback_context.agent, 'name'):
+            agent_name = callback_context.agent.name
+            if agent_name != "preflop_decision_agent":
+                return None
+        
+        # LLMリクエストから入力データを取得
+        if hasattr(llm_request, 'messages') and llm_request.messages:
+            # 最新のメッセージから入力データを取得
+            latest_message = llm_request.messages[-1]
+            if hasattr(latest_message, 'content'):
+                content = latest_message.content
+                if isinstance(content, str):
+                    try:
+                        # JSONとしてパースを試行
+                        input_data = json.loads(content)
+                    except json.JSONDecodeError:
+                        # JSONでない場合は辞書として扱う
+                        input_data = {"content": content}
+                else:
+                    input_data = content
+            else:
+                return None
+        else:
+            return None
+        
+        # 入力データからyour_cardsを取得
+        if isinstance(input_data, dict) and 'your_cards' in input_data:
+            your_cards = input_data['your_cards']
+        else:
+            return None
+        
+        # カードが存在しない場合は何もしない
+        if not your_cards or len(your_cards) != 2:
+            return None
+        
+        # カードをJSON配列文字列に変換
+        cards_json = json.dumps(your_cards)
+        
+        # evaluate_handsツールを実行
+        hand_evaluation = evaluate_hands(cards_json)
+        
+        # 入力データにハンド評価結果を追加
+        input_data['hand_evaluation'] = hand_evaluation
+        
+        # 修正されたメッセージを作成
+        if hasattr(llm_request, 'messages') and llm_request.messages:
+            # 最新のメッセージを更新
+            latest_message.content = json.dumps(input_data)
+        
+        return llm_request
+            
+    except Exception as e:
+        print(f"before_model_callback エラー: {e}")
+        return None
 
 def extract_json_from_text(text: str) -> Optional[Dict[str, Any]]:
     """

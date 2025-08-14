@@ -3,7 +3,7 @@ def evaluate_hands(hand_input: str) -> str:
     Comprehensive Texas Hold'em preflop hand evaluation
 
     Args:
-        hand_input: JSON array format like '["A♥", "4♦"]' (using ♥/♦/♣/♠ for suits)
+        hand_input: JSON array format like '["Ah", "4d"]' (using h/d/c/s for suits)
 
     Returns:
         Evaluation result string with rank and strategic recommendation
@@ -44,9 +44,9 @@ def evaluate_hands(hand_input: str) -> str:
         if rank2 == "10":
             rank2 = "T"
 
-        # 有効なランクとスートのチェック
+        # 有効なランクとスートのチェック（短縮表記形式）
         valid_ranks = {"2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"}
-        valid_suits = {"♥", "♦", "♣", "♠"}
+        valid_suits = {"h", "d", "c", "s"}
         
         if rank1 not in valid_ranks or rank2 not in valid_ranks:
             return "Rank D: Invalid rank (Weakest rank - Recommend fold)"
