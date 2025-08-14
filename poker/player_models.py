@@ -609,39 +609,55 @@ class LLMApiPlayer(Player):
                             },
                         },
                         headers={"Content-Type": "application/json"},
-                        timeout=19,  # スレッド側は19秒でタイムアウト
+                        timeout=44,  # スレッド側は44秒でタイムアウト
                     )
                 except Exception as e:
                     return e
 
             start = time.time()
             logged_10 = False
+            logged_20 = False
+            logged_30 = False
             with cf.ThreadPoolExecutor(max_workers=1) as executor:
                 future = executor.submit(run_request)
                 response = None
                 while True:
                     elapsed = time.time() - start
-                    # 10秒経過ログ
+                    # 10秒ごとのログ出力
                     if not logged_10 and elapsed >= 10:
                         logger.info(
                             f"Waiting for LLM API response for {self.name}... 10 seconds elapsed"
                         )
                         logged_10 = True
+                    if not logged_20 and elapsed >= 20:
+                        logger.info(
+                            f"Waiting for LLM API response for {self.name}... 20 seconds elapsed"
+                        )
+                        logged_20 = True
+                    if not logged_30 and elapsed >= 30:
+                        logger.info(
+                            f"Waiting for LLM API response for {self.name}... 30 seconds elapsed"
+                        )
+                        logged_30 = True
                     try:
                         # 短い待機でポーリング
                         response = future.result(timeout=0.2)
                         break
                     except cf.TimeoutError:
                         pass
-                    if elapsed >= 20:
+                    if elapsed >= 40:
                         logger.warning(
-                            f"LLM API response timeout for {self.name} after 20 seconds - folding"
+                            f"LLM API response timeout for {self.name} after 40 seconds - folding"
                         )
                         if hasattr(self, "last_decision_reasoning"):
                             self.last_decision_reasoning = (
-                                "20秒経過しても応答がないため、フォールドします"
+                                "40秒経過しても応答がないため、フォールドします"
                             )
-                        return {"action": "fold", "amount": 0}
+                        return {
+                            "action": "fold",
+                            "amount": 0,
+                            "reasoning": "40秒経過しても応答がないため、フォールドします",
+                        }
 
             # スレッド結果の処理
             if isinstance(response, Exception):
@@ -651,7 +667,11 @@ class LLMApiPlayer(Player):
 
             if response is None:
                 logger.error(f"Empty response received for {self.name}")
-                return {"action": "fold", "amount": 0}
+                return {
+                    "action": "fold",
+                    "amount": 0,
+                    "reasoning": "20秒経過しても応答がないため、フォールドします",
+                }
 
             if response.status_code != 200:
                 logger.error(
@@ -667,7 +687,11 @@ class LLMApiPlayer(Player):
                     }, indent=2)}"
                     )
                 # 失敗時はフォールドで安全に進行
-                return {"action": "fold", "amount": 0}
+                return {
+                    "action": "fold",
+                    "amount": 0,
+                    "reasoning": "20秒経過しても応答がないため、フォールドします",
+                }
 
             # 正常応答
             try:
