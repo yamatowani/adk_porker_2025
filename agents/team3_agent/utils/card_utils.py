@@ -14,6 +14,18 @@ __all__ = [
     "evaluate_hand_category",
 ]
 
+HAND_STRENGTH_MAP: Dict[str, int] = {
+    "straight flush": 9,
+    "four of a kind": 8,
+    "full house": 7,
+    "flush": 6,
+    "straight": 5,
+    "three of a kind": 4,
+    "two pair": 3,
+    "one pair": 2,
+    "high card": 1,
+}
+
 # ====== 型定義 ======
 
 class Suit(Enum):
@@ -112,6 +124,26 @@ def build_deck_excluding(excluded: Iterable[Card]) -> List[Card]:
                 deck.append(c)
     return deck
 
+def hand_strength_from_name(hand_name: str) -> int:
+    """
+    役名から強さ(9..1)を返す。未知の表記は ValueError。
+    許容例:
+      "Full House", "full_house", "FULL-HOUSE", "fullhouse"
+    """
+    if not hand_name:
+        raise ValueError("hand_name is empty")
+    key = hand_name.strip().lower().replace("_", " ").replace("-", " ")
+    key = " ".join(key.split())  # 余分な空白を畳む
+
+    if key in HAND_STRENGTH_MAP:
+        return HAND_STRENGTH_MAP[key]
+
+    compact = key.replace(" ", "")
+    if compact in _HAND_STRENGTH_COMPACT:
+        return _HAND_STRENGTH_COMPACT[compact]
+
+    raise ValueError(f"Unknown hand name: {hand_name!r}")
+
 def evaluate_hand_category(hole_cards: List[Card], community_cards: List[Card]) -> Tuple[str, int]:
     """
     7枚からベスト5枚の「役カテゴリ」を返す（キッカー等は無視）。
@@ -172,3 +204,4 @@ def evaluate_hand_category(hole_cards: List[Card], community_cards: List[Card]) 
     if num_pairs >= 2:    return "Two Pair", 3
     if max_count == 2:    return "One Pair", 2
     return "High Card", 1
+
