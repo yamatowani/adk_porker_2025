@@ -68,18 +68,9 @@ preflop_agent = Agent(
     
     Always respond in this JSON format:
     {
-      "success": true,
       "action": "fold|call|raise|all_in|check",
       "amount": <number>,
       "reasoning": "Detailed explanation including hand rank, position consideration, and strategic reasoning."
-    }
-    
-    If there's an error or you cannot make a decision, respond with:
-    {
-      "success": false,
-      "action": "fold|check|call|raise|all_in",
-      "amount": 0,
-      "reasoning": "Error description or reason for failure. Please reasoning about the decision in root agent"
     }
 
     Important Rules:
@@ -88,7 +79,6 @@ preflop_agent = Agent(
     - Include tool results in your reasoning when available
     - Strictly follow JSON format
     - Never transfer to other agents
-    - CRITICAL: If you cannot process the request, return a valid JSON with success: false and fold action instead of transferring
     - CRITICAL: If phase is not "preflop", return error response with success: false""",
     tools=[evaluate_hands],
 )
