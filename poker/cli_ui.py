@@ -3,7 +3,8 @@ CLI User Interface for Poker Game
 """
 
 import json
-from typing import Dict, Any, Tuple, Optional
+from time import sleep
+from typing import Dict, Any, Tuple, Optional, List
 from .game import PokerGame, GamePhase
 from .player_models import Player, HumanPlayer, PlayerStatus
 from .evaluator import HandEvaluator
@@ -483,6 +484,325 @@ class PokerUI:
         except Exception as e:
             print(f"\nエラーが発生しました: {e}")
             print("ゲームを終了します。")
+
+    def run_agent_only_mode(
+        self, max_hands: int = 20, agents_config: str = "team1_agent:2,team2_agent:2"
+    ):
+        """
+        エージェント専用モード - LLMエージェントのみで完全自動進行ゲーム
+
+        Args:
+            max_hands: 最大ハンド数（デフォルト20）
+            agents_config: エージェント設定（例: "team1_agent:2,team2_agent:1,beginner_agent:1"）
+        """
+        print("=== エージェント専用モード ===")
+        print("LLMエージェントのみで完全自動進行します")
+        print(f"最大{max_hands}ハンドまで実行します")
+        print(f"エージェント設定: {agents_config}\n")
+
+        # エージェント設定を解析
+        try:
+            player_configs = self._parse_agents_config(agents_config)
+            print(f"プレイヤー構成: {len(player_configs)}人")
+            for i, config in enumerate(player_configs):
+                print(f"  Player {i}: {config['agent_id']} ({config['type']})")
+            print()
+            print("ゲームを開始します。")
+            sleep(3)
+        except Exception as e:
+            print(f"エージェント設定の解析に失敗しました: {e}")
+            return
+
+        # ゲームセットアップ
+        self.game = PokerGame()
+        self.game.setup_configurable_game_with_models(player_configs)
+
+        # 統計情報の初期化
+        player_stats = {}
+        for player in self.game.players:
+            player_stats[player.name] = {
+                "hands_won": 0,
+                "total_winnings": 0,
+                "hands_played": 0,
+                "agent_type": self._get_agent_type_for_player(player, player_configs),
+            }
+
+        import time
+
+        try:
+            hand_count = 0
+            print("ゲーム開始...")
+            print("-" * 60)
+
+            while not self.game.is_game_over() and hand_count < max_hands:
+                hand_count += 1
+
+                # プレイヤー統計更新
+                for player in self.game.players:
+                    if player.status != PlayerStatus.BUSTED:
+                        player_stats[player.name]["hands_played"] = hand_count
+
+                # 新しいハンドを開始
+                self.game.start_new_hand()
+
+                if self.game.current_phase == GamePhase.FINISHED:
+                    break
+
+                # ハンド開始の表示（簡潔に）
+                active_players = [
+                    p for p in self.game.players if p.status == PlayerStatus.ACTIVE
+                ]
+                print(
+                    f"ハンド #{self.game.hand_number:2d} | プレイヤー: {len(active_players)}人 | ポット: ${self.game.pot}"
+                )
+
+                # ハンドのメインループ
+                while self.game.current_phase not in [
+                    GamePhase.SHOWDOWN,
+                    GamePhase.FINISHED,
+                ]:
+                    # 各プレイヤーのアクション
+                    while not self.game.betting_round_complete:
+                        current_player = self.game.players[
+                            self.game.current_player_index
+                        ]
+
+                        if current_player.status != PlayerStatus.ACTIVE:
+                            self.game._advance_to_next_player()
+                            continue
+
+                        # エージェントプレイヤーのアクション
+                        game_state = self.game.get_llm_game_state(current_player.id)
+                        decision = current_player.make_decision(game_state)
+
+                        success = self.game.process_player_action(
+                            current_player.id,
+                            decision["action"],
+                            decision.get("amount", 0),
+                        )
+
+                        if not success:
+                            # エージェントの決定が無効な場合はフォールド
+                            self.game.process_player_action(
+                                current_player.id, "fold", 0
+                            )
+
+                        # 判断理由の表示（LLMApiPlayerの場合）
+                        if hasattr(current_player, "last_decision_reasoning"):
+                            reasoning = getattr(
+                                current_player, "last_decision_reasoning", ""
+                            )
+                            if reasoning:
+                                print(
+                                    f"  {current_player.name}: {decision['action']} - {reasoning[:80]}..."
+                                )
+
+                        # 短い待機時間
+                        time.sleep(0.1)  # エージェントモードでは少し長めに
+
+                    # 次のフェーズに進む
+                    if not self.game.advance_to_next_phase():
+                        break
+
+                # ショーダウン処理
+                if self.game.current_phase == GamePhase.SHOWDOWN:
+                    results = self.game.conduct_showdown()
+
+                    # 勝者の統計更新
+                    if results.get("results"):
+                        for result_info in results["results"]:
+                            winner_id = result_info["player_id"]
+                            winner_player = self.game.get_player(winner_id)
+                            if winner_player:
+                                winner_name = winner_player.name
+                                winnings = result_info["winnings"]
+                                player_stats[winner_name]["hands_won"] += 1
+                                player_stats[winner_name]["total_winnings"] += winnings
+
+                        # 勝者表示
+                        winner_names = []
+                        winner_winnings = []
+                        for result_info in results["results"]:
+                            winner_id = result_info["player_id"]
+                            winner_player = self.game.get_player(winner_id)
+                            if winner_player:
+                                winner_names.append(winner_player.name)
+                                winner_winnings.append(f"${result_info['winnings']}")
+
+                        if winner_names:
+                            winners_str = ", ".join(winner_names)
+                            winnings_str = ", ".join(winner_winnings)
+                            print(f"       勝者: {winners_str} ({winnings_str})")
+
+                # 5ハンドごとに中間結果表示
+                if hand_count % 5 == 0:
+                    print(f"\n--- {hand_count}ハンド完了 ---")
+                    for player in self.game.players:
+                        if player.status != PlayerStatus.BUSTED:
+                            stats = player_stats[player.name]
+                            agent_type = stats["agent_type"]
+                            print(
+                                f"{player.name:>8s} ({agent_type}): ${player.chips:4d} (勝利:{stats['hands_won']:2d}回)"
+                            )
+                    print("-" * 40)
+
+            # 最終結果表示
+            print(f"\n{'='*70}")
+            print(f"エージェント専用モード完了 - {hand_count}ハンド実行")
+            print(f"{'='*70}")
+
+            # 最終チップ数でソート
+            final_rankings = sorted(
+                self.game.players, key=lambda p: p.chips, reverse=True
+            )
+
+            print("\n🏆 最終順位:")
+            for i, player in enumerate(final_rankings):
+                stats = player_stats[player.name]
+                profit = player.chips - self.game.initial_chips
+                profit_str = (
+                    f"+${profit}"
+                    if profit > 0
+                    else f"-${abs(profit)}" if profit < 0 else "$0"
+                )
+
+                status_icon = (
+                    "👑" if i == 0 else "💎" if i == 1 else "🥉" if i == 2 else "😢"
+                )
+                agent_type = stats["agent_type"]
+                print(
+                    f"{i+1}位 {status_icon} {player.name:>8s} ({agent_type:>12s}): ${player.chips:4d} ({profit_str:>6s}) "
+                    f"| 勝利: {stats['hands_won']:2d}/{stats['hands_played']:2d}回"
+                )
+
+            print(f"\n📊 ゲーム統計:")
+            print(f"   総ハンド数: {hand_count}")
+            print(f"   総プレイヤー: {len(self.game.players)}")
+
+            # エージェント別統計
+            agent_stats = {}
+            for stats in player_stats.values():
+                agent_type = stats["agent_type"]
+                if agent_type not in agent_stats:
+                    agent_stats[agent_type] = {"wins": 0, "players": 0}
+                agent_stats[agent_type]["wins"] += stats["hands_won"]
+                agent_stats[agent_type]["players"] += 1
+
+            print(f"\nエージェント別統計:")
+            for agent_type, stats in agent_stats.items():
+                avg_wins = (
+                    stats["wins"] / stats["players"] if stats["players"] > 0 else 0
+                )
+                print(
+                    f"   {agent_type:>15s}: {stats['wins']:3d}勝 / {stats['players']}人 (平均{avg_wins:.1f}勝)"
+                )
+
+            # 勝率計算
+            total_wins = sum(stats["hands_won"] for stats in player_stats.values())
+            print(f"   決着ハンド: {total_wins}")
+
+            print(f"\n最多勝利者:")
+            best_player = max(player_stats.items(), key=lambda x: x[1]["hands_won"])
+            print(f"   {best_player[0]}: {best_player[1]['hands_won']}勝")
+
+            print(f"\n最高利益者:")
+            most_profitable = max(
+                final_rankings, key=lambda p: p.chips - self.game.initial_chips
+            )
+            profit = most_profitable.chips - self.game.initial_chips
+            print(f"   {most_profitable.name}: +${profit}")
+
+            print(f"\n{'='*70}")
+
+        except KeyboardInterrupt:
+            print("\n\nエージェント専用モードを中断しました。")
+        except Exception as e:
+            print(f"\nエラーが発生しました: {e}")
+            import traceback
+
+            traceback.print_exc()
+
+    def _parse_agents_config(self, agents_config: str) -> List[Dict[str, Any]]:
+        """
+        エージェント設定文字列を解析してプレイヤー設定リストを作成
+
+        Args:
+            agents_config: "team1_agent:2,team2_agent:1,beginner_agent:1" のような形式
+
+        Returns:
+            プレイヤー設定のリスト
+        """
+        available_agents = [
+            "team1_agent",
+            "team2_agent",
+            "team3_agent",
+            "team4_agent",
+            "beginner_agent",
+        ]
+        player_configs = []
+        player_id = 0
+
+        for agent_spec in agents_config.split(","):
+            agent_spec = agent_spec.strip()
+            if ":" not in agent_spec:
+                raise ValueError(
+                    f"無効なエージェント設定: {agent_spec}. 形式: 'agent_name:count'"
+                )
+
+            agent_name, count_str = agent_spec.split(":", 1)
+            agent_name = agent_name.strip()
+
+            if agent_name not in available_agents:
+                raise ValueError(
+                    f"不明なエージェント: {agent_name}. 利用可能: {available_agents}"
+                )
+
+            try:
+                count = int(count_str.strip())
+                if count <= 0:
+                    raise ValueError(
+                        f"プレイヤー数は1以上である必要があります: {count}"
+                    )
+            except ValueError:
+                raise ValueError(f"無効なプレイヤー数: {count_str}")
+
+            # 指定された数だけプレイヤーを追加
+            for i in range(count):
+                player_configs.append(
+                    {
+                        "type": "llm_api",
+                        "agent_id": agent_name,
+                        "user_id": f"player_{player_id}",
+                    }
+                )
+                player_id += 1
+
+        if len(player_configs) < 2:
+            raise ValueError("最低2人のプレイヤーが必要です")
+        if len(player_configs) > 10:
+            raise ValueError("最大10人のプレイヤーまでサポートされます")
+
+        return player_configs
+
+    def _get_agent_type_for_player(
+        self, player: Player, player_configs: List[Dict[str, Any]]
+    ) -> str:
+        """プレイヤーに対応するエージェントタイプを取得"""
+        # プレイヤーIDに基づいてagent_idを取得
+        player_index = player.id
+        if player_index < len(player_configs):
+            config = player_configs[player_index]
+            if config.get("agent_id"):
+                return config["agent_id"]
+
+        if hasattr(player, "app_name"):
+            return player.app_name
+        elif hasattr(player, "model"):
+            return f"llm({player.model})"
+        elif player.name.startswith("CPU"):
+            return "random"
+        else:
+            return "unknown"
 
     def run_cpu_only_game(self, max_hands: int = 10, display_interval: int = 1):
         """
