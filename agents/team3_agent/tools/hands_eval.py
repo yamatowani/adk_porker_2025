@@ -3,7 +3,7 @@ def evaluate_hands(hand_input: str) -> str:
     Comprehensive Texas Hold'em preflop hand evaluation
 
     Args:
-        hand_input: Format like "5c 4s" (using c/s/h/d for suits)
+        hand_input: Format like ["A♥", "4♦"] (using ♥/♦/♣/♠ for suits)
 
     Returns:
         Evaluation result string with rank and strategic recommendation
@@ -12,7 +12,7 @@ def evaluate_hands(hand_input: str) -> str:
         return "Rank D: Invalid input (Weakest rank - Recommend fold)"
     
     try:
-        cards = hand_input.strip().split()
+        cards = hand_input
         if len(cards) != 2:
             return "Rank D: Invalid format (Weakest rank - Recommend fold)"
         
@@ -49,7 +49,7 @@ def evaluate_hands(hand_input: str) -> str:
             return f"Rank S: {hand_notation} (Premium hand - Always raise/call)"
 
         a_rank_hands = {
-            "ATo", "A9s", "A8s", "A7s", "A5s", "A4s", "A3s", "A2s", 
+            "AJo", "ATo", "A9s", "A8s", "A7s", "A5s", "A4s", "A3s", "A2s", 
             "KJs", "KTs", "K9s","KQo", "QJs", "QTs", "AJo", "KJo", "T9s", "JTs", 
             "88", "77", "66", "55", 
         }
