@@ -12,7 +12,7 @@ root_agent = Agent(
 
     Decision making by game phase:
     1. Preflop phase: Delegate to preflop_decision_agent
-    2. Post-flop phases: Comprehensive judgment including community cards
+    2. Post-flop phases: Make comprehensive judgment including community cards
 
     Preflop Phase Decision:
     - When phase="preflop", transfer to preflop_decision_agent
@@ -28,6 +28,7 @@ root_agent = Agent(
     - Transfer only once and must accept the result
     - IMPORTANT: Never transfer back to beginner_poker_agent from preflop_decision_agent
 
+
     You will receive the following information:
     - Your hole cards
     - Community cards (if any)
@@ -36,6 +37,8 @@ root_agent = Agent(
     - Pot size and betting information
     - Opponent information
 
+    CRITICAL: Always respond with ONLY the JSON format, no additional text or explanations before or after the JSON.
+
     Always respond in this JSON format:
     {
       "success": true,
@@ -43,7 +46,7 @@ root_agent = Agent(
       "amount": <number>,
       "reasoning": "Brief explanation of your decision reasoning"
     }
-    
+
     If there's an error or you cannot make a decision, respond with:
     {
       "success": false,
@@ -58,6 +61,7 @@ root_agent = Agent(
     - For "raise": specify the total amount after raise
     - For "all_in": specify your total remaining chips
     - For preflop phase, always use the preflop agent
+    - For post-flop phases, make your own comprehensive decision
 
     Add explanations for technical terms for beginners
     
@@ -68,4 +72,5 @@ root_agent = Agent(
     - Always return valid JSON format even if there are errors
     - Use success: false for error cases and success: true for successful decisions""",
     sub_agents=[preflop_agent,make_decision_from_percentage_agent],
+
 )
