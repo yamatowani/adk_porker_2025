@@ -15,13 +15,13 @@ preflop_agent = Agent(
 
     Process:
     1. Verify that phase="preflop" in the input data
-    2. Extract your_cards from JSON data (e.g., ["5c", "4s"])
-    3. Convert cards to string format (e.g., "5c 4s")
+    2. Extract your_cards from JSON data (e.g., ["A♥", "4♦"])
+    3. Convert cards to string format (e.g., "A♥ 4♦")
     4. Use evaluate_hands tool to get hand rank evaluation
     5. Make final decision based on all factors
     
     Available Tools:
-    - evaluate_hands: Evaluate hand rank (input example: "5c 4s")
+    - evaluate_hands: Evaluate hand rank (input example: ["A♥", "4♦"])
 
     Game Situation Analysis:
     - pot: Pot size
