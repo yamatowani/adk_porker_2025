@@ -14,9 +14,9 @@ TOOLS (call each at most once):
    - H1 = most probable final hand category
    - E1 = weighted expected value (scale aligned with hand strength; higher is better)
 
-2) monte_carlo_probabilities(your_cards, community, players_num)
+2) monte_carlo_probabilities(your_cards, community, handed)
    → returns: { "<hand_or_win_metric>": <percent>, ... }
-   - players_num = count of players with status == "active" in input (include self); if unavailable, use 5
+   - player_num = number of players in the game
    - Let P2 = win rate for your hand against random hands of other players.
 
 HAND STRENGTH ORDER (for qualitative comparisons only; no math):

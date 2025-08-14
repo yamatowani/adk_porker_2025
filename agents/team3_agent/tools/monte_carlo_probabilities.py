@@ -1,14 +1,14 @@
 from pokerkit import *
 from typing import List
 
-def monte_carlo_probabilities(your_cards: List[str], community: List[str], players_num: int = 5) -> dict:
+def monte_carlo_probabilities(your_cards: List[str], community: List[str], player_num: int = 5) -> dict:
     """
     Monte Carlo simulation to estimate the probabilities of different poker hands.
 
     Args:
         your_cards (List[str]): Your hole cards in short format (e.g., ["Ah", "Kd"]).
         community (List[str]): Community cards in short format (e.g., ["Tc", "Jc", "Qc"]).
-        players_num (int): Number of player in this game.
+        player_num (int): Number of player in this game.
 
     Returns:
         dict: Estimated probabilities of different poker hands.
@@ -16,9 +16,8 @@ def monte_carlo_probabilities(your_cards: List[str], community: List[str], playe
     try:
         hole_cards_str = ''.join(your_cards)
         community_cards_str = ''.join(community) if community else ""
-        
         result = calculate_hand_strength(
-        players_num,
+        player_num,
         parse_range(hole_cards_str),
         Card.parse(community_cards_str) if community_cards_str else None,
         2,
