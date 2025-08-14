@@ -1,32 +1,34 @@
 from google.adk.agents import Agent
+from .agents.preflop_decision_agent import preflop_decision_agent
+from .agents.postflop_agent import postflop_agent
+from .tools.parse_suit import parse_suit
 
 root_agent = Agent(
-    name="beginner_poker_agent",
-    model="gemini-2.5-flash-lite",
-    description="戦略的な意思決定を行うテキサスホールデム・ポーカープレイヤー",
-    instruction="""あなたはテキサスホールデム・ポーカーのエキスパートプレイヤーです。
+  name="root_agent",
+  model="gemini-2.5-flash-lite",
+  description="""Normalizes card suits using the parse_suit tool and then delegates the normalized game state to exactly one sub-agent based on phase: preflop_decision_agent for preflop, postflop_agent for flop/turn/river. Returns only the chosen sub-agent’s JSON.""",
+  instruction="""
+You are the ROOT ROUTER. Do NOT produce any answer. Follow these steps exactly in order.
 
-あなたのタスクは、現在のゲーム状況を分析し、最善の意思決定を下すことです。
+STEP 1 — NORMALIZE (MUST, exactly once)
+Call tool: parse_suit(your_cards=<input.your_cards>, community=<input.community>) once.
+If success:true: replace input your_cards/community with the normalized arrays (h/d/c/s).
+If success:false: keep originals and add "parse_suit_error" with the tool’s error into the payload.
 
-あなたには以下の情報が与えられます:
-- あなたの手札（ホールカード）
-- コミュニティカード（あれば）
-- 選択可能なアクション
-- ポットサイズやベット情報
-- 対戦相手の情報
+STEP 2 — ROUTE (choose ONE)
+If phase.lower() == "preflop" → call preflop_decision_agent once with the full payload (after STEP 1).
+Else ("flop" / "turn" / "river") → call postflop_agent once with the full payload (after STEP 1).
 
-必ず次のJSON形式で回答してください:
-{
-  "action": "fold|check|call|raise|all_in",
-  "amount": <数値>,
-  "reasoning": "あなたの決定の理由を簡潔に説明"
-}
+CONSTRAINTS
+-Call parse_suit exactly once and before any delegation.
+-Delegate to one and only one sub-agent.
+-Do not call other tools/agents.
+-Do not do any response to client.
 
-ルール:
-- "fold"と"check"の場合: amountは0にしてください
-- "call"の場合: コールに必要な正確な金額を指定してください
-- "raise"の場合: レイズ後の合計金額を指定してください
-- "all_in"の場合: あなたの残りチップ全額を指定してください
-
-初心者がわかるように専門用語には解説を加えてください""",
+SILENT SELF-CHECK (do not include in output)
+- Did I call parse_suit once?
+- Did I route to exactly one sub-agent based on phase?
+  """,
+  tools=[parse_suit],
+  sub_agents=[preflop_decision_agent, postflop_agent],
 )
