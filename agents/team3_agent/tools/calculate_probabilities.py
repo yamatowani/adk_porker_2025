@@ -168,7 +168,7 @@ def _evaluate_hand(hole_cards: List[Card], community_cards: List[Card]) -> Tuple
 
 # --- tool entry --------------------------------------------------------------
 
-def calculate_role(your_cards: List[str], community: List[str], phase: str = "") -> Dict[str, float]:
+def calculate_hand_probabilities(your_cards: List[str], community: List[str], phase: str = "") -> Dict[str, float]:
     """
     現在のホールカードとコミュニティカードから、ターン/リバーで最終的に成立しうる
     各役の確率分布（%）だけを返す。

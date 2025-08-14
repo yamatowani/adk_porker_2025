@@ -71,6 +71,6 @@ root_agent = Agent(
     - If preflop_decision_agent fails, make your own decision instead of transferring
     - Always return valid JSON format even if there are errors
     - Use success: false for error cases and success: true for successful decisions""",
-    sub_agents=[preflop_agent,make_decision_from_percentage_agent],
+    sub_agents=[preflop_agent,postflop_agent],
 
 )
