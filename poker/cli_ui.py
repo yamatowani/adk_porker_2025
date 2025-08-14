@@ -3,6 +3,7 @@ CLI User Interface for Poker Game
 """
 
 import json
+from time import sleep
 from typing import Dict, Any, Tuple, Optional, List
 from .game import PokerGame, GamePhase
 from .player_models import Player, HumanPlayer, PlayerStatus
@@ -506,31 +507,11 @@ class PokerUI:
             for i, config in enumerate(player_configs):
                 print(f"  Player {i}: {config['agent_id']} ({config['type']})")
             print()
+            print("ゲームを開始します。")
+            sleep(3)
         except Exception as e:
             print(f"エージェント設定の解析に失敗しました: {e}")
-            print("デフォルト設定を使用します...")
-            player_configs = [
-                {
-                    "type": "llm_api",
-                    "agent_id": "team1_agent",
-                    "user_id": "player_0",
-                },
-                {
-                    "type": "llm_api",
-                    "agent_id": "team1_agent",
-                    "user_id": "player_1",
-                },
-                {
-                    "type": "llm_api",
-                    "agent_id": "team2_agent",
-                    "user_id": "player_2",
-                },
-                {
-                    "type": "llm_api",
-                    "agent_id": "team2_agent",
-                    "user_id": "player_3",
-                },
-            ]
+            return
 
         # ゲームセットアップ
         self.game = PokerGame()
