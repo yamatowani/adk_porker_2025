@@ -1,8 +1,13 @@
-from google.adk.agents import Agent
+from google.adk.agents import LlmAgent
 from ..tools.hands_eval import evaluate_hands 
-from ..callbacks.after_model_callback import after_model_callback
+from pydantic import BaseModel, Field
 
-preflop_decision_agent = Agent(
+class OutputSchema(BaseModel):
+  action: str = Field(description="Action to take")
+  amount: int = Field(description="Amount to bet/call (0 for fold/check)")
+  reasoning: str = Field(description="Brief explanation of decision")
+
+preflop_decision_agent = LlmAgent(
     model='gemini-2.5-flash-lite',
     name="preflop_decision_agent",
     description="Texas Hold'em preflop decision specialist with guaranteed JSON response",
@@ -13,6 +18,7 @@ preflop_decision_agent = Agent(
     - You MUST make final decisions
     - You MUST NOT return any plain text
     - You MUST NOT transfer to other agents
+    - You MUST NOT include any explanations before or after the JSON
 
     Process:
     1. Extract your_cards from input (e.g., ["Ah", "4d"])
@@ -20,7 +26,7 @@ preflop_decision_agent = Agent(
     3. Use evaluate_hands tool to get hand rank evaluation (for reference only)
     4. Analyze game situation comprehensively (pot, bet to call, position, stack sizes, etc.)
     5. Make final decision based on overall situation, not just hand rank
-    6. Return ONLY JSON format
+    6. Return ONLY the JSON object, nothing else
 
     Available Tools:
     - evaluate_hands: Evaluate hand rank (input format: '["Ah", "4d"]' - JSON array string)
@@ -86,6 +92,7 @@ preflop_decision_agent = Agent(
     - NEVER return plain text
     - NEVER transfer to other agents
     - NEVER include explanations outside JSON
+    - NEVER include any text before or after the JSON object
     - Make decisions based on position, pot odds, and overall situation
     - Hand rank is reference only - don't rely solely on it
     - Consider stack sizes and opponent tendencies
@@ -100,8 +107,8 @@ preflop_decision_agent = Agent(
     Bad: "I think I should fold because..."
     Bad: "Your hand is weak, fold"
     Bad: "Transferring to another agent"
+    Bad: "The user provided a game state where they are holding 9s and Kh. The game is in the preflop stage... {"action": "fold", "amount": 0, "reasoning": "..."}"
 
-    **CRITICAL: Return ONLY the JSON object, nothing else!**""",
-    tools=[evaluate_hands],
-    after_model_callback=after_model_callback
+    **CRITICAL: Return ONLY the JSON object, nothing else! No text before, no text after, just the JSON!**""",
+    output_schema=OutputSchema
 )
