@@ -1,6 +1,6 @@
 from google.adk.agents import Agent
 from .agents.preflop_agent import preflop_agent
-from .agents.make_decision_from_percentage_agent import make_decision_from_percentage_agent
+from .agents.postflop_agent import postflop_agent
 
 root_agent = Agent(
       name="beginner_poker_agent",
