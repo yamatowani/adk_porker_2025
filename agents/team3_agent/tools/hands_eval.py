@@ -42,31 +42,39 @@ def evaluate_hands(hand_input: str) -> str:
             hand_notation = f"{high_rank}{low_rank}{suited_marker}"
 
         s_rank_hands = {
-            "AA", "AKs", "AKo", "KK", "QQ", "AQs", "AJs", "ATs", "KQs", "AQo"
+            "AA", "AKs", "AKo", "KK", "QQ", "AQs", "AJs", "ATs", "KQs", "AQo", "JJ", "TT", "99"
         }
         
         if hand_notation in s_rank_hands:
             return f"Rank S: {hand_notation} (Premium hand - Always raise/call)"
 
         a_rank_hands = {
-            "A9s", "A8s", "A7s", "A5s", "A4s", "A3s", "A2s", 
-            "KTs", "K9s", "QTs", "KJo", "ATo", "T9s", 
-            "JJ", "TT", "99", "88", "77", "66", "55"
+            "ATo", "A9s", "A8s", "A7s", "A5s", "A4s", "A3s", "A2s", 
+            "KJs", "KTs", "K9s","KQo", "QJs", "QTs", "AJo", "KJo", "T9s", "JTs", 
+            "88", "77", "66", "55", 
         }
         
         if hand_notation in a_rank_hands:
             return f"Rank A: {hand_notation} (Strong hand - Always call or raise)"
 
         b_rank_hands = {
-            "Q9s", "QJo", "J9s", "A9o", "98s", "44", "33", "22"
+          "A9o","KTo", "QJo", "JTo", "Q9s", "J9s", "T8s", "98s", "44", "33", "22"
         }
         
         if hand_notation in b_rank_hands:
             return f"Rank B: {hand_notation} (Medium hand - Consider position and opponent action)"
 
         c_rank_hands = {
-            "Q5s", "Q4s", "Q3s", "Q2s", "J6s", "T7s", "96s", "98o", 
-            "86s", "75s", "A6o", "64s", "54s"
+            "A8o", "A7o", "A6o",
+            "K9o", "K8s", "K7s", "K6s", "K5s", "K4s", "K3s", "K2s", 
+            "QTo", "Q9o", "Q8s", "Q7s", "Q6s", "Q5s", "Q4s", "Q3s", "Q2s", 
+            "J9o", "J8s", "J7s", "J6s",
+            "T9s", "T8s", "T7s",
+            "97s", "96s",
+            "87s", "86s",
+            "76s", "75s",
+            "65s", "64s",
+            "54s",
         }
         
         if hand_notation in c_rank_hands:

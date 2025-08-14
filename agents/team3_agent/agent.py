@@ -59,6 +59,7 @@ root_agent = Agent(
     
     CRITICAL RULES:
     - Never transfer back to beginner_poker_agent from preflop_decision_agent
+    - Please check it whenever possible
     - If preflop_decision_agent fails, make your own decision instead of transferring
     - Always return valid JSON format even if there are errors
     - Use success: false for error cases and success: true for successful decisions""",
