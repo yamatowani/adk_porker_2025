@@ -18,7 +18,6 @@ from .player_models import (
     PlayerStatus,
 )
 from .evaluator import HandEvaluator, HandResult
-from .player_stats import PlayerStatsManager, ActionType
 
 # ゲーム専用のロガーを設定
 game_logger = logging.getLogger("poker_game")
@@ -38,7 +37,7 @@ class PokerGame:
     """テキサスホールデムゲーム管理クラス"""
 
     def __init__(
-        self, small_blind: int = 10, big_blind: int = 20, initial_chips: int = 2000, max_hands: int = None
+        self, small_blind: int = 10, big_blind: int = 20, initial_chips: int = 2000
     ):
         self.small_blind = small_blind
         self.big_blind = big_blind
@@ -69,9 +68,6 @@ class PokerGame:
         # ゲーム統計
         self.game_stats = {"hands_played": 0, "players_eliminated": []}
 
-        # プレイヤー統計管理
-        self.stats_manager = PlayerStatsManager(max_hands=max_hands)
-
         # 最後に実行したショーダウン結果（観戦UI向けに公開するため）
         self.last_showdown_results: Optional[Dict[str, Any]] = None
 
@@ -87,9 +83,6 @@ class PokerGame:
         if len(self.players) >= 10:
             raise ValueError("Maximum 10 players allowed")
         self.players.append(player)
-        
-        # 統計管理にプレイヤーを登録
-        self.stats_manager.register_player(player.id, player.name)
 
     def get_player(self, player_id: int) -> Optional[Player]:
         """プレイヤーIDでプレイヤーを取得"""
@@ -220,10 +213,6 @@ class PokerGame:
             game_logger.info("Not enough players - setting phase to FINISHED")
             self.current_phase = GamePhase.FINISHED
             return
-            
-        # 統計管理のハンド開始処理
-        active_players = [i for i, p in enumerate(self.players) if p.status != PlayerStatus.BUSTED]
-        self.stats_manager.record_hand_start(active_players)
 
         # ディーラーボタンを移動
         game_logger.info("Moving dealer button")
@@ -556,9 +545,6 @@ class PokerGame:
         # アクション履歴に追加
         self.action_history.append(action_description)
         game_logger.info(f"ACTION_EXECUTED: {action_description}")
-        
-        # 統計管理にアクションを記録
-        self._record_action_for_stats(player, action, amount)
 
         self._log_game_state("AFTER_ACTION", f"Action: {action_description}")
 
@@ -575,29 +561,6 @@ class PokerGame:
         )
 
         return True
-
-    def _record_action_for_stats(self, player: Player, action: str, amount: int = 0):
-        """統計管理にアクションを記録"""
-        phase = self.current_phase.value.lower()
-        
-        # アクションタイプを判定
-        if action == "fold":
-            action_type = ActionType.FOLD
-        elif action == "check":
-            action_type = ActionType.CHECK
-        elif action == "call":
-            action_type = ActionType.CALL
-        elif action == "bet":
-            action_type = ActionType.BET
-        elif action == "raise":
-            action_type = ActionType.RAISE
-        elif action == "all_in":
-            action_type = ActionType.ALL_IN
-        else:
-            # 不明なアクションはスキップ
-            return
-            
-        self.stats_manager.record_action(player.id, action_type, phase, amount)
 
     def _advance_to_next_player(self):
         """次のアクティブプレイヤーに移動（座席順序を維持）"""
@@ -821,17 +784,6 @@ class PokerGame:
             game_logger.info("Going to SHOWDOWN - only 1 or fewer players remaining")
             self.current_phase = GamePhase.SHOWDOWN
             self._log_game_state("PHASE_CHANGED_TO_SHOWDOWN")
-            
-            # ハンド終了時の統計を記録
-            if len(remaining_players) == 1:
-                # 1人だけ残っている場合、そのプレイヤーが勝者
-                winner = remaining_players[0]
-                self.stats_manager.record_hand_end([winner.id], self.current_phase.value.lower())
-            else:
-                # 全員フォールドした場合、最後にアクションしたプレイヤーが勝者
-                # この場合は統計を記録しない（実際には全員フォールドの場合は勝者がいない）
-                pass
-            
             return True
 
         old_phase = self.current_phase
@@ -1031,59 +983,162 @@ class PokerGame:
         except Exception as e:
             game_logger.debug("Showdown logging (hands) failed: %s", e)
 
-        # ハンドの強さでソート（強い順）
-        player_hands.sort(
-            key=lambda x: (x["hand"].rank.value, x["hand"].kickers), reverse=True
-        )
+        # ID -> HandResult のマップ
+        hands_by_id = {ph["player"].id: ph["hand"] for ph in player_hands}
 
-        # 勝者を決定（同じ強さの場合は分割）
-        best_hand = player_hands[0]["hand"]
-        winners = []
+        # サイドポットを含めたポット階層を構築
+        contributions = {
+            p.id: max(0, int(getattr(p, "total_bet_this_hand", 0)))
+            for p in self.players
+        }
+        # 0 の寄付は除外
+        contributions = {pid: c for pid, c in contributions.items() if c > 0}
 
-        for ph in player_hands:
-            if (
-                ph["hand"].rank == best_hand.rank
-                and ph["hand"].kickers == best_hand.kickers
-            ):
-                winners.append(ph["player"])
-            else:
-                break
+        def build_pot_layers(contrib_map: Dict[int, int]) -> List[Dict[str, Any]]:
+            if not contrib_map:
+                return []
+            unique_levels = sorted(set(contrib_map.values()))
+            layers: List[Dict[str, Any]] = []
+            prev = 0
+            for level in unique_levels:
+                width = level - prev
+                if width <= 0:
+                    prev = level
+                    continue
+                eligible_contributors = [
+                    pid for pid, amt in contrib_map.items() if amt >= level
+                ]
+                layer_amount = width * len(eligible_contributors)
+                layers.append(
+                    {
+                        "amount": layer_amount,
+                        "contributors": eligible_contributors,
+                    }
+                )
+                prev = level
+            return layers
 
-        # ポットを分割
-        winnings_per_player = self.pot // len(winners)
-        remainder = self.pot % len(winners)
+        pot_layers = build_pot_layers(contributions)
 
+        # レイヤー情報をログ
+        try:
+            for idx, layer in enumerate(pot_layers):
+                game_logger.info(
+                    "Pot layer %d: amount=%d, contributors=%s",
+                    idx,
+                    layer["amount"],
+                    layer["contributors"],
+                )
+        except Exception:
+            pass
+
+        # 勝者決定の補助関数（対象ID集合の中で最強ハンドを持つ者を返す）
+        def determine_winner_ids(
+            eligible_ids: List[int],
+        ) -> Tuple[List[int], Optional[HandResult]]:
+            best: Optional[HandResult] = None
+            winners_local: List[int] = []
+            for pid in eligible_ids:
+                hand = hands_by_id.get(pid)
+                if hand is None:
+                    continue
+                if best is None:
+                    best = hand
+                    winners_local = [pid]
+                else:
+                    # hand が best より強い場合
+                    if hand.rank.value > best.rank.value or (
+                        hand.rank.value == best.rank.value
+                        and hand.kickers > best.kickers
+                    ):
+                        best = hand
+                        winners_local = [pid]
+                    elif (
+                        hand.rank.value == best.rank.value
+                        and hand.kickers == best.kickers
+                    ):
+                        winners_local.append(pid)
+            return winners_local, best
+
+        # 各レイヤーごとに分配
+        winnings_map: Dict[int, int] = {}
+        total_awarded = 0
+
+        # ショーダウンに参加している（フォールドしていない）プレイヤーID
+        showdown_ids = {p.id for p in remaining_players}
+
+        for layer_idx, layer in enumerate(pot_layers):
+            amount = layer["amount"]
+            # このレイヤーでの受給資格者（コントリビュータかつショーダウン参加）
+            eligible_ids = [pid for pid in layer["contributors"] if pid in showdown_ids]
+
+            if not eligible_ids:
+                # 受給資格者がいない場合はスキップ（通常は発生しない想定）
+                game_logger.warning(
+                    "No eligible players for pot layer %d; amount=%d is unclaimed",
+                    layer_idx,
+                    amount,
+                )
+                continue
+
+            winner_ids, best_hand_in_layer = determine_winner_ids(eligible_ids)
+
+            # 分配
+            base_share = amount // len(winner_ids)
+            remainder = amount % len(winner_ids)
+
+            # 座席順（player.idの昇順）で余りを配分
+            winner_ids_sorted = sorted(winner_ids)
+            for i, pid in enumerate(winner_ids_sorted):
+                share = base_share + (1 if i < remainder else 0)
+                winnings_map[pid] = winnings_map.get(pid, 0) + share
+                total_awarded += share
+
+            # 履歴用のサマリ
+            try:
+                self.action_history.append(
+                    "Side pot layer "
+                    + str(layer_idx)
+                    + ": amount="
+                    + str(amount)
+                    + ", winners="
+                    + ", ".join(str(pid) for pid in winner_ids_sorted)
+                    + (
+                        " best_hand=" + str(best_hand_in_layer)
+                        if best_hand_in_layer is not None
+                        else ""
+                    )
+                )
+            except Exception:
+                pass
+
+        # 実際にチップを配布し、結果を作成
         results = []
-        # サマリを履歴に追記
-        self.action_history.append(
-            "Showdown winners: "
-            + ", ".join(str(w.id) for w in winners)
-            + f" best_hand={str(best_hand)} pot={self.pot} split={winnings_per_player} remainder={remainder}"
-        )
-        for i, winner in enumerate(winners):
-            winnings = winnings_per_player
-            if i < remainder:  # 余りを最初の勝者から順に配布
-                winnings += 1
-
-            winner.chips += winnings
+        for pid, win_amount in sorted(winnings_map.items()):
+            player = self.get_player(pid)
+            if player is None:
+                continue
+            player.chips += win_amount
             results.append(
                 {
-                    "player_id": winner.id,
-                    "hand": str(player_hands[0]["hand"]),
-                    "winnings": winnings,
+                    "player_id": pid,
+                    "hand": str(hands_by_id.get(pid)),
+                    "winnings": win_amount,
                 }
             )
-            # 各勝者の配当の詳細行は履歴に追記しない
 
-        # 勝者と配当のログ
+        # 参考: 全体のベストハンド（UI用）を計算
+        all_ids = list(hands_by_id.keys())
+        overall_winner_ids, overall_best_hand = determine_winner_ids(all_ids)
+
+        # ログ
         try:
             game_logger.info(
-                "Showdown winners: %s best_hand=%s pot=%d split=%d remainder=%d",
-                [w.id for w in winners],
-                str(best_hand),
-                self.pot,
-                winnings_per_player,
-                remainder,
+                "Showdown total awarded: %d (game.pot=%d)", total_awarded, self.pot
+            )
+            game_logger.info(
+                "Showdown winners (aggregated): %s",
+                [pid for pid in sorted(winnings_map.keys())],
             )
             for r in results:
                 game_logger.info(
@@ -1096,23 +1151,28 @@ class PokerGame:
         except Exception as e:
             game_logger.debug("Showdown logging (results) failed: %s", e)
 
+        # all_hands 情報
+        all_hands_payload = [
+            {
+                "player_id": ph["player"].id,
+                "hand": str(ph["hand"]),
+                "cards": [str(card) for card in ph["player"].hole_cards],
+            }
+            for ph in player_hands
+        ]
+
+        # ポットは全額配布済みとして 0 にする（念のため負値回避）
+        try:
+            self.pot = max(0, self.pot - total_awarded)
+        except Exception:
+            self.pot = 0
+
         result = {
-            "winners": [w.id for w in winners],
+            "winners": overall_winner_ids,
             "results": results,
-            "all_hands": [
-                {
-                    "player_id": ph["player"].id,
-                    "hand": str(ph["hand"]),
-                    "cards": [str(card) for card in ph["player"].hole_cards],
-                }
-                for ph in player_hands
-            ],
+            "all_hands": all_hands_payload,
         }
         self.last_showdown_results = result
-        
-        # 統計管理にハンド結果を記録
-        self.stats_manager.record_hand_end(result["winners"], self.current_phase.value.lower())
-        
         return result
 
     def is_game_over(self) -> bool:
@@ -1152,7 +1212,6 @@ class PokerGame:
             ],
             "action_history": self.action_history,
             "game_stats": self.game_stats,
-            "player_stats": self.stats_manager.export_stats(),
         }
 
         with open(filename, "w", encoding="utf-8") as f:

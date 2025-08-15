@@ -90,7 +90,7 @@ def main():
         "--max-hands",
         type=int,
         default=10,
-        help="CPU専用・エージェント専用モードでの最大ハンド数（デフォルト: 10）",
+        help="CPU専用・エージェント専用モードでの最大ハンド数（CPU専用:10、エージェント専用:20）",
     )
     parser.add_argument(
         "--display-interval",
@@ -117,7 +117,10 @@ def main():
             elif args.agent_only:
                 # エージェント専用モードを実行
                 print("エージェント専用モードで実行します...")
-                ui.run_agent_only_mode(max_hands=args.max_hands, agents_config=args.agents)
+                max_hands = (
+                    args.max_hands if args.max_hands != 10 else 20
+                )  # エージェント専用モードのデフォルトは20
+                ui.run_agent_only_mode(max_hands=max_hands, agents_config=args.agents)
             else:
                 # 通常のゲームを実行
                 ui.run_game()
