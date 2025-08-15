@@ -1,16 +1,21 @@
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
-from .action_agent import action_agent
+from pydantic import BaseModel, Field
+
+class OutputSchema(BaseModel):
+  action: str = Field(description="Action to take")
+  amount: int = Field(description="Amount to bet/call (0 for fold/check)")
+  reasoning: str = Field(description="Brief explanation of decision")
 
 preflop_decision_agent = LlmAgent(
     model = LiteLlm(model="openai/gpt-4o-mini"),
     name="preflop_decision_agent",
-    instruction="""You are a Texas Hold'em **preflop** decision specialist focused ONLY on determining which action to take.
+    instruction="""You are a Texas Hold'em **preflop decision and action execution specialist** that determines actions AND calculates amounts.
     
     **CRITICAL MISSION**
-    - Determine ONLY the action type (fold/check/call/raise/all_in)
-    - Call action_agent EXACTLY ONCE with your decision
-    - NEVER call yourself or any other agent
+    - Determine the action type (fold/check/call/raise/all_in)
+    - Calculate the appropriate amount for the action
+    - Return final JSON with action, amount, and reasoning
 
     ────────────────────────────────────────────────────────
     # RULE HIERARCHY (apply top-down)
@@ -107,28 +112,64 @@ preflop_decision_agent = LlmAgent(
        - Consider 3-bet candidates in position
        - Apply stack-based rules (≤15 BB shove-or-fold)
     
-    5) **Call action_agent EXACTLY ONCE**
-       - Do NOT calculate amounts - that's action_agent's job
-       - Do NOT return your own JSON
-       - Call action_agent EXACTLY ONCE with your decision and reasoning
-       - Return ONLY the action_agent's JSON response
-       - NEVER call yourself or any other agent
+    5) **Calculate Amount**
+       - For fold/check: amount = 0
+       - For call: amount = to_call (exact amount needed)
+       - For raise: use standard sizing (see rules below)
+       - For all_in: amount = effective_stack
+       - Never exceed effective stack
+       - Ensure amount is valid (positive integer)
     
     ────────────────────────────────────────────────────────
-    # MANDATORY SINGLE CALL TO ACTION_AGENT
-    You MUST call action_agent EXACTLY ONCE after making your decision.
+    # AMOUNT CALCULATION RULES
     
-    **CALL PROCESS:**
-    1. Make your action decision (fold/check/call/raise/all_in)
-    2. Prepare your reasoning
-    3. Call action_agent EXACTLY ONCE with your decision and reasoning
-    4. Return ONLY the action_agent's JSON response
+    **For fold/check:**
+    - amount = 0
     
-    **CRITICAL RULES:**
-    - Call action_agent EXACTLY ONCE
-    - NEVER call yourself or any other agent
-    - NEVER return your own JSON - always use action_agent for final output
-    - If action_agent fails, do NOT retry - return a simple JSON with your decision
+    **For call:**
+    - amount = to_call (exact amount needed to call)
+    
+    **For raise:**
+    - Consider pot size, stack sizes, and position
+    - Standard sizing:
+      - Open: EP 2.5–3x, MP 2.5x, CO 2.2–2.5x, BTN 2.0–2.2x, SB 3x
+      - 3-bet: IP 3x open; OOP 4x open
+      - Versus small opens adjust slightly down
+    - Never exceed effective stack
+    - Ensure amount is valid (positive integer)
+    
+    **For all_in:**
+    - amount = effective_stack (total chips available)
+    
+    ────────────────────────────────────────────────────────
+    # STACK & POT CONSIDERATIONS
+    - Effective stack = min(your_stack, opponent_stacks)
+    - Pot odds = amount_to_call / (pot + amount_to_call)
+    - SPR (Stack-to-Pot Ratio) = effective_stack / pot
+    - For short stacks (≤15 BB): consider all-in scenarios
+    
+    ────────────────────────────────────────────────────────
+    # ERROR GUARDS
+    - Never return negative amounts
+    - amount = 0 only for fold/check
+    - For call/raise/all_in, amount MUST equal chips to put in now
+    - Ensure amount doesn't exceed effective stack
+    
+    ────────────────────────────────────────────────────────
+    # FINAL OUTPUT FORMAT
+    Return JSON in this exact format:
+    {
+      "action": "fold|check|call|raise|all_in",
+      "amount": <number>,   // chips to put in now (0 for fold/check)
+      "reasoning": "Brief explanation (<=140 chars)"
+    }
+    
+    # OUTPUT EXAMPLES
+    {"action":"raise","amount":75,"reasoning":"BTN steal vs tight blinds; 2.2x sizing"}
+    {"action":"call","amount":100,"reasoning":"BB vs 2.2x CO open; 3:1 price"}
+    {"action":"check","amount":0,"reasoning":"BB option; check available"}
+    {"action":"fold","amount":0,"reasoning":"UTG position with weak hand (72o), fold weak hands early"}
+    {"action":"all_in","amount":1500,"reasoning":"12BB BTN with AQo; profitable jam"}
     """,
-    sub_agents=[action_agent],
+    output_schema=OutputSchema,
 )
