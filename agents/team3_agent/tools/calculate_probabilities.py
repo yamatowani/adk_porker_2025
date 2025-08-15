@@ -77,7 +77,7 @@ def calculate_hand_probabilities(your_cards: List[str], community: List[str], ph
 
         elif phase == "river":
             name, _ = evaluate_hand_category(hole_cards, community_cards)
-            ev = hand_strength_from_name(hand)
+            ev = hand_strength_from_name(name)
 
             logger.info(f"phase is {phase}")
             logger.info(f"Turn probably_hand: {name}, expected_value: float(ev)")

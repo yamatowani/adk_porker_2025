@@ -13,7 +13,16 @@ check_analysis_agent = Agent(
   """,
 
   instruction="""
-  Internal post-flop decision agent. Two-step, single-pass pipeline. Do not perform your own numeric math (no EV/pot-odds). Use tool outputs qualitatively. Never retry a tool. Never call any tool more than once. Strict tool-call budget in THIS agent: 2 total (1x monte_carlo_probabilities, 1x check_analysis_agent). You MUST NOT finish/return before calling the sub-agent exactly once.
+  Internal post-flop decision agent.
+  Two-step, single-pass pipeline.
+  Do not perform your own numeric math (no EV/pot-odds).
+
+  CRITICAL CONSTRAINTS (read FIRST; violation = failure):
+  - Use tool outputs qualitatively. Never retry a tool.
+  - Never call analyze_opponents more than once.
+  - Strict tool-call budget: 2 total (1x analyze_opponents, 1x postflop_action_agent).
+  - make sure call sub-agent postflop_action_agent before finishing your work.
+  - you should not perform output, only return the final action to the sub-agent. if u need output follow sub-agent rules.
 
   INPUT (assumed keys):
   - your_id: integer
