@@ -8,7 +8,7 @@ from ..tools.analyze_opponents import analyze_opponents
 
 
 postflop_agent = Agent(
-  model = LiteLlm(model="openai/gpt-4o"),
+  model = LiteLlm(model="openai/gpt-4o-mini"),
   name="postflop_agent",
   description="""
 Internal post-flop decision agent. Three-step, single-pass pipeline. Do not perform your own numeric math (no EV/pot-odds). Use tool outputs qualitatively. Never retry a tool. Never call any tool more than once.

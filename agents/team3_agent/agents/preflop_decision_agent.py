@@ -8,7 +8,7 @@ class OutputSchema(BaseModel):
   reasoning: str = Field(description="Brief explanation of decision")
 
 preflop_decision_agent = LlmAgent(
-    model = LiteLlm(model="openai/gpt-4o"),
+    model = LiteLlm(model="openai/gpt-4o-mini"),
     name="preflop_decision_agent",
     description="Texas Hold'em preflop decision specialist with guaranteed JSON response",
     instruction="""You are a Texas Hold'em preflop decision specialist optimized for high win rate.
