@@ -18,7 +18,7 @@ Call tool: parse_suit(your_cards=<input.your_cards>, community=<input.community>
 - If success:true → replace input.your_cards / input.community with the normalized arrays (h/d/c/s).
 - If success:false → keep originals and add "parse_suit_error": "<tool error>" to the payload.
 
-STEP 2 — POSITION CHECK (MUST, exactly once)
+STEP 2 — POSITION CHECK (MUST, exactly once, only once)
 Call tool: position_check(
   your_id=<input.your_id>,
   dealer_button=<input.dealer_button>,
@@ -27,7 +27,7 @@ Call tool: position_check(
 - On success, add the returned dict under "position_info" in the payload (do not remove original fields).
 - On failure, add "position_check_error": "<tool error>" and continue.
 
-STEP 3 — ROUTE (choose ONE, exactly once)
+STEP 3 — ROUTE (choose ONE, exactly once, only once)
 - If phase.lower() == "preflop" → call preflop_before_decision_agent once with the FULL enriched payload.
 - Else (phase in {"flop","turn","river"} or inferred from community count) → call postflop_agent once with the FULL enriched payload.
 

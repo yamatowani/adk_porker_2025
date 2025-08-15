@@ -1,5 +1,4 @@
 from google.adk.agents import Agent
-from pydantic import BaseModel, Field
 from google.adk.models.lite_llm import LiteLlm
 from ..tools.hand_history_tools import save_history
 from ..agents.preflop_decision_agent import preflop_decision_agent

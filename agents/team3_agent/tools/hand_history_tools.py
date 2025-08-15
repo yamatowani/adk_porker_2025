@@ -25,6 +25,7 @@ def hand_category_strength(name: str) -> int:
 class PlayerStatsDB:
     def __init__(self, path: str = "poker_stats.sqlite3"):
         self.conn = sqlite3.connect(path)
+        self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")
         self._ensure_tables()
 
@@ -92,6 +93,42 @@ class PlayerStatsDB:
             """,
             (pid, category, delta),
         )
+
+    def _get_player_stats(self, pid: int) -> Dict[str, int]:
+        """
+        player_stats の一行を dict で返す。存在しなければゼロ埋めで返す。
+        例:
+        {
+            "player_id": 0, "hands_played": 1, "saw_flop": 0, "went_to_showdown": 0,
+            "won_showdown": 0, "vpip": 0, "pfr": 0, "three_bet": 0, "cold_call": 0,
+            "total_contributed": 0, "total_won": 0
+        }
+        """
+        cur = self.conn.execute(
+            "SELECT player_id, hands_played, saw_flop, went_to_showdown, won_showdown, "
+            "vpip, pfr, three_bet, cold_call, total_contributed, total_won "
+            "FROM player_stats WHERE player_id = ?",
+            (pid,),
+        )
+        row = cur.fetchone()
+        if row is not None:
+            print(f"get_player_stats: Found stats for player {pid}: {row}")
+            return dict(row)
+
+        # 未登録プレイヤーはゼロ埋めで返す
+        return {
+            "player_id": pid,
+            "hands_played": 0,
+            "saw_flop": 0,
+            "went_to_showdown": 0,
+            "won_showdown": 0,
+            "vpip": 0,
+            "pfr": 0,
+            "three_bet": 0,
+            "cold_call": 0,
+            "total_contributed": 0,
+            "total_won": 0,
+        }
 
     def commit(self):
         self.conn.commit()
@@ -391,6 +428,53 @@ def save_history(history: List[str])-> None:
     ingestor.ingest_history(history)
     return None
 
+def get_player_stats(player_id: int) -> Dict[str, int]:
+    """
+    Retrieve aggregated statistics for a single player from the local SQLite database.
+
+    This function is read-only. If the player does not yet exist in the database,
+    it returns a zero-initialized stats dictionary so callers don’t need to handle
+    missing rows.
+
+    Parameters
+    ----------
+    player_id : int
+        The target player's unique identifier.
+
+    Returns
+    -------
+    Dict[str, int]
+        A dictionary containing these keys (zero-filled if the player is unknown):
+        {
+          "player_id": int,
+          "hands_played": int,
+          "saw_flop": int,
+          "went_to_showdown": int,
+          "won_showdown": int,
+          "vpip": int,
+          "pfr": int,
+          "three_bet": int,
+          "cold_call": int,
+          "total_contributed": int,
+          "total_won": int
+        }
+
+    Examples
+    --------
+    >>> stats = get_player_stats(3)
+    >>> stats["hands_played"], stats["vpip"], stats["total_won"]
+    (42, 18, 560)
+    """
+    db = PlayerStatsDB("./team3_agent/db/poker_stats.sqlite3")
+    try:
+        # Prefer a public accessor if you add one (db.get_player_stats);
+        # fallback to the internal method here for compatibility.
+        return db._get_player_stats(player_id)
+    finally:
+        try:
+            db.conn.close()
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     db = PlayerStatsDB("poker_stats.sqlite3")  # ファイル保存なら "poker_stats.sqlite3" or ":memory:"
