@@ -2,6 +2,8 @@ from typing import List, Dict, Tuple
 from enum import Enum
 from itertools import combinations
 from ..utils.card_utils import *
+import logging
+logger = logging.getLogger(__name__)
 
 
 def calculate_hand_probabilities(your_cards: List[str], community: List[str], phase: str = "") -> dict:
@@ -22,6 +24,7 @@ def calculate_hand_probabilities(your_cards: List[str], community: List[str], ph
         if not your_cards or len(your_cards) != 2:
             return {}
 
+        logger.info(f"calculate_hand_probabilities called with your_cards: {your_cards}, community: {community}, phase: {phase}")
         # 文字列 → Card
         try:
             hole_cards = parse_cards(your_cards)
@@ -45,8 +48,12 @@ def calculate_hand_probabilities(your_cards: List[str], community: List[str], ph
                 return {"probably_hand": "", "expected_value": 0.0}
 
             probs = {k: v / total for k, v in counts.items()}
+            logger.info(f"counts: {counts}")
             probably_hand, _ = max(probs.items(), key=lambda kv: kv[1])
             ev = sum(p * HAND_WEIGHTS.get(hand, 0.0) for hand, p in probs.items())
+
+            logger.info(f"phase is {phase}")
+            logger.info(f"Turn probably_hand: {probably_hand}, expected_value: {ev}")
 
             return {"probably_hand": probably_hand, "expected_value": round(ev, 4)}
 
@@ -62,13 +69,21 @@ def calculate_hand_probabilities(your_cards: List[str], community: List[str], ph
             probably_hand, _ = max(probs.items(), key=lambda kv: kv[1])
             ev = sum(p * HAND_WEIGHTS.get(hand, 0.0) for hand, p in probs.items())
 
+            logger.info(f"phase is {phase}")
+            logger.info(f"Turn probably_hand: {probably_hand}, expected_value: {ev}")
+
             return {"probably_hand": probably_hand, "expected_value": round(ev, 4)}
 
         if phase == "river":
             name, _ = evaluate_hand_category(hole_cards, community_cards)
             ev = HAND_WEIGHTS.get(name, 0.0)
+
+            logger.info(f"phase is {phase}")
+            logger.info(f"Turn probably_hand: {name}, expected_value: float(ev)")
+
             return {"probably_hand": name, "expected_value": float(ev)}
 
         return {}
     except Exception as e:
+        logger.warning(f"Error in calculate_hand_probabilities: {e}")
         return {}
