@@ -6,7 +6,7 @@ from .postflop_action_agent import postflop_action_agent
 
 
 check_analysis_agent = Agent(
-  model = LiteLlm(model="openai/gpt-4o"),
+  model = LiteLlm(model="openai/gpt-4o-mini"),
   name="check_analysis_agent",
   description=""""
   you are a post-flop decision agent. You will analyze the current hand situation and make a decision based on the provided tools and game state. Never respond and output
