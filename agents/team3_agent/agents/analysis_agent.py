@@ -3,7 +3,7 @@ from google.adk.models.lite_llm import LiteLlm
 from ..tools.hand_history_tools import get_player_stats
 
 analysis_agent = Agent(
-    model=LiteLlm(model="openai/gpt-4o"),
+    model=LiteLlm(model="openai/gpt-4o-mini"),
     name="analysis_agent",
     description="Internal-only opponent analysis. Returns JSON to parent; never addresses the user.",
     instruction="""

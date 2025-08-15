@@ -4,7 +4,7 @@ from ..tools.hand_history_tools import save_history
 from ..agents.preflop_decision_agent import preflop_decision_agent
 
 preflop_before_decision_agent = Agent(
-    model = LiteLlm(model="openai/gpt-4o"),
+    model = LiteLlm(model="openai/gpt-4o-mini"),
     name="preflop_before_decision_agent",
     description="""
     Logs hand history exactly once via `save_history`, then delegates the original
