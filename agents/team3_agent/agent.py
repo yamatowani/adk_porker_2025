@@ -5,7 +5,6 @@ from .tools.parse_suit import parse_suit
 from .tools.position_check import position_check
 from google.adk.models.lite_llm import LiteLlm
 
-
 root_agent = Agent(
   name="root_agent",
   model=LiteLlm(model="openai/gpt-4o"),
