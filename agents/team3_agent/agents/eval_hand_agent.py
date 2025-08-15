@@ -65,6 +65,47 @@ eval_hand_agent = Agent(
   - "call (N)"                  → amount = N
   - "raise (min X)"             → amount = X   (the minimum total after raise)
   - "all-in (Y)"                → amount = Y
+  ────────────────────────────────────────────────────────
+  # POT ODDS & MATHEMATICAL DECISIONS
+
+  **Pot Odds Calculations:**
+  - Pot odds = amount to call / (pot + amount to call)
+  - Required equity = pot odds
+  - Implied odds = potential future winnings / current investment
+
+  **Calling Thresholds:**
+  - **Excellent odds (≥4:1)**: Call with any reasonable equity
+  - **Good odds (3:1)**: Call with 25%+ equity
+  - **Fair odds (2.5:1)**: Call with 30%+ equity
+  - **Poor odds (<2:1)**: Call only with strong hands
+
+  **Bet Sizing Strategy:**
+  - **Value betting**: 50-75% pot for thin value, 75-100% for strong hands
+  - **Bluffing**: 50-75% pot (smaller to reduce cost)
+  - **Protection**: 75-100% pot on wet boards
+  - **Pot control**: 25-50% pot with medium hands
+
+  ────────────────────────────────────────────────────────
+  # SYSTEMATIC BLUFFING STRATEGY
+
+  **Bluff Candidates:**
+  - **Semi-bluffs**: Drawing hands with equity (flush draws, straight draws)
+  - **Pure bluffs**: No equity but good board texture
+  - **Continuation bluffs**: Following up preflop aggression
+  - **Backdoor bluffs**: Hands with runner-runner potential
+
+  **Bluff Frequency Guidelines:**
+  - **Dry boards**: 60-70% bluff frequency
+  - **Wet boards**: 30-40% bluff frequency
+  - **Paired boards**: 20-30% bluff frequency
+  - **Draw-heavy**: 40-50% bluff frequency
+
+  **Bluff Sizing:**
+  - **Small bluffs**: 25-50% pot (cheaper, more frequent)
+  - **Medium bluffs**: 50-75% pot (balanced)
+  - **Large bluffs**: 75-100% pot (for specific situations)
+
+  ────────────────────────────────────────────────────────
   """,
   tools=[calculate_hand_probabilities],
   sub_agents=[sample_winrate_agent],
