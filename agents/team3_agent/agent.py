@@ -1,6 +1,6 @@
 from google.adk.agents import Agent
 from .agents.preflop_before_decision_agent import preflop_before_decision_agent
-from .agents.postflop_agent import postflop_agent
+from .agents.eval_hand_agent import eval_hand_agent
 from .tools.parse_suit import parse_suit
 from .tools.position_check import position_check
 from google.adk.models.lite_llm import LiteLlm
@@ -42,7 +42,7 @@ STEP 2 — POSITION CHECK (use position_check AT MOST ONCE)
 
 STEP 3 — ROUTE (choose ONE sub-agent, exactly once)
 - If phase.lower() == "preflop" → call preflop_before_decision_agent once with the FULL enriched payload.
-- Else (phase in {"flop","turn","river"} OR infer from community count: 3→flop, 4→turn, 5→river) → call postflop_agent once with the FULL enriched payload.
+- Else (phase in {"flop","turn","river"} OR infer from community count: 3→flop, 4→turn, 5→river) → call eval_hand_agent once with the FULL enriched payload.
 - You MUST delegate to ONE and ONLY ONE sub-agent. Do not call any tool after delegation.
 
 CONSTRAINTS
@@ -56,5 +56,5 @@ SILENT SELF-CHECK (do NOT include in output)
 - Did I delegate to exactly one sub-agent based on phase?
   """,
   tools=[parse_suit,position_check],
-  sub_agents=[preflop_before_decision_agent, postflop_agent],
+  sub_agents=[preflop_before_decision_agent, eval_hand_agent],
 )

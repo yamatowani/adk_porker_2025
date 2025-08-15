@@ -5,7 +5,8 @@ from ..tools.hand_history_tools import get_player_stats
 analysis_agent = Agent(
     model=LiteLlm(model="openai/gpt-4o-mini"),
     name="analysis_agent",
-    description="Internal-only opponent analysis. Returns JSON to parent; never addresses the user.",
+    description="""Internal-only opponent analysis. Returns JSON to parent;
+    you are a very good TEXAS HOLD 'EM poker analysis agent. You will analyze the current hand situation and make a decision based on the provided tools and game state. Never respond and output.""",
     instruction="""
 INTERNAL-ONLY SUB-AGENT. DO NOT ADDRESS THE USER.
 
@@ -24,9 +25,11 @@ TOOL (call at most once):
 TASK:
 1) If target_player_id is missing → return exactly:
    {"player_id": -1, "hand_strength": 0.0, "ok": false}
-2) Otherwise call get_player_stats(target_player_id) once.
-3) Optionally skim 'history' to adjust the score qualitatively (NO text output).
-4) Return EXACTLY this JSON (no extra keys):
+2) Otherwise call get_player_stats(target_player_id) once and think about target_player play style.
+3) if you fell there is too small sample for one player, return:
+    {"player_id": <int>, "hand_strength": 0.5, "ok": true}
+4) Optionally skim 'history' to adjust the score qualitatively (NO text output).
+5) Return EXACTLY this JSON (no extra keys):
    {"player_id": <int>, "hand_strength": <float 0.0..1.0>, "ok": true}
 
 ERRORS:
