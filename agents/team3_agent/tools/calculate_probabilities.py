@@ -77,7 +77,7 @@ def calculate_hand_probabilities(your_cards: List[str], community: List[str], ph
 
         elif phase == "river":
             name, _ = evaluate_hand_category(hole_cards, community_cards)
-            ev = hand_strength_from_name(hand)
+            ev = hand_strength_from_name(name)
 
             logger.info(f"phase is {phase}")
             logger.info(f"Turn probably_hand: {name}, expected_value: float(ev)")
@@ -89,3 +89,24 @@ def calculate_hand_probabilities(your_cards: List[str], community: List[str], ph
     except Exception as e:
         logger.warning(f"Error in calculate_hand_probabilities: {e}")
         return {}
+
+def calculate_hand_ranking(your_cards: List[str], community: List[str], phase: str = "") -> int:
+    """
+    Returns the hand category and strength value based on the current hole cards and community cards.
+
+    Args:
+        your_cards (List[str]): Your two hole cards (e.g., ["Ah","Kd"]).
+        community (List[str]): 0-5 community cards (e.g., ["10s","Jc","Qd"]).
+        phase (str, optional): "preflop" | "flop" | "turn" | "river".
+
+    Returns:
+        Tuple[str, int]: Hand category name and its strength value.
+    """
+    try:
+        if not your_cards or len(your_cards) != 2:
+            return 2
+
+        calculate_hand_probabilities(your_cards, community, phase)
+    except Exception as e:
+        logger.warning(f"Error in calculate_hand_ranking: {e}")
+        return 2

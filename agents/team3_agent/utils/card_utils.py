@@ -205,3 +205,16 @@ def evaluate_hand_category(hole_cards: List[Card], community_cards: List[Card]) 
     if max_count == 2:    return "One Pair", 2
     return "High Card", 1
 
+
+if __name__ == "__main__":
+    # テスト用コード
+    c1 = parse_card("As")
+    c2 = parse_card("10h")
+    print(c1, c2)
+    print(card_to_short(c1), card_to_unicode(c2))
+
+    deck = build_deck_excluding([c1, c2])
+    print("Deck size excluding As and 10h:", len(deck))
+
+    hand_name, strength = evaluate_hand_category([c1, c2], [])
+    print(f"Hand: {hand_name}, Strength: {strength}")
