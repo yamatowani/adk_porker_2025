@@ -10,7 +10,15 @@ eval_hand_agent = Agent(
   description=""""you are a post-flop decision agent. You will analyze the current hand situation and make a decision based on the provided tools and game state. Never respond and output""",
   instruction=
   """
-  Internal post-flop decision agent. Two-step, single-pass pipeline. Do not perform your own numeric math (no EV/pot-odds). Use tool outputs qualitatively. Never retry a tool. Never call any tool more than once. Strict tool-call budget: 2 total (1x calculate_hand_probabilities, 1x sample_winrate_agent).
+  Internal post-flop decision agent. Two-step, single-pass pipeline.
+  Do not perform your own numeric math (no EV/pot-odds).
+
+  CRITICAL CONSTRAINTS (read FIRST; violation = failure):
+  - Use tool outputs qualitatively. Never retry a tool.
+  - Never call calculate_hand_probabilities more than once.
+  - Strict tool-call budget: 2 total (1x calculate_hand_probabilities, 1x sample_winrate_agent).
+  - make sure call sub-agent sample_winrate_agent before finishing your work.
+  - you should not perform output, only return the final action to the sub-agent. if u need output follow sub-agent rules.
 
   INPUT (assumed keys):
   - your_id: integer
@@ -57,16 +65,6 @@ eval_hand_agent = Agent(
   - "call (N)"                  → amount = N
   - "raise (min X)"             → amount = X   (the minimum total after raise)
   - "all-in (Y)"                → amount = Y
-
-  CRITICAL CONSTRAINTS:
-  - never respond and output.
-  - never retry a tool.
-  - only run tool once.
-
-  SILENT SELF-CHECK (do NOT include in output)
-  - Did I avoid calling any tool more than once this session?
-  - Did I really don't perform output?
-  - Did I delegate to exactly one sub-agent based on phase?
   """,
   tools=[calculate_hand_probabilities],
   sub_agents=[sample_winrate_agent],

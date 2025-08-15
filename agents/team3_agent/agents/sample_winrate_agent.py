@@ -9,7 +9,16 @@ sample_winrate_agent = Agent(
   name="sample_winrate_agent",
   description=""""you are a post-flop decision agent. You will analyze the current hand situation and make a decision based on the provided tools and game state. Never respond and output""",
   instruction="""
-  Internal post-flop decision agent. Two-step, single-pass pipeline. Do not perform your own numeric math (no EV/pot-odds). Use tool outputs qualitatively. Never retry a tool. Never call any tool more than once. Strict tool-call budget in THIS agent: 2 total (1x monte_carlo_probabilities, 1x check_analysis_agent). You MUST NOT finish/return before calling the sub-agent exactly once.
+  Internal post-flop decision agent.
+  Two-step, single-pass pipeline.
+  Do not perform your own numeric math (no EV/pot-odds).
+
+  CRITICAL CONSTRAINTS (read FIRST; violation = failure):
+  - Use tool outputs qualitatively. Never retry a tool.
+  - Never call monte_carlo_probabilities more than once.
+  - Strict tool-call budget: 2 total (1x monte_carlo_probabilities, 1x check_analysis_agent).
+  - make sure call sub-agent check_analysis_agent before finishing your work.
+  - you should not perform output, only return the final action to the sub-agent. if u need output follow sub-agent rules.
 
   INPUT (assumed keys):
   - your_id: integer
@@ -45,16 +54,6 @@ sample_winrate_agent = Agent(
   - "call (N)"        → amount = N
   - "raise (min X)"   → amount = X   (the minimum total after raise)
   - "all-in (Y)"      → amount = Y
-
-  CRITICAL CONSTRAINTS:
-  - never respond and output.
-  - never retry a tool.
-  - only run tool once.
-
-  SILENT SELF-CHECK (do NOT include in output)
-  - Did I avoid calling any tool more than once this session?
-  - Did I really don't perform output?
-  - Did I delegate to exactly one sub-agent based on phase?
 """,
   tools=[monte_carlo_probabilities],
   sub_agents=[check_analysis_agent],
