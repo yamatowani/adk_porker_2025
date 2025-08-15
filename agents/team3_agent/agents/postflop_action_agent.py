@@ -7,13 +7,13 @@ class OutputSchema(BaseModel):
   amount: int = Field(description="Amount to bet/call (0 for fold/check)")
   reasoning: str = Field(description="Brief explanation of decision")
 
-action_agent = LlmAgent(
+postflop_action_agent = LlmAgent(
     model = LiteLlm(model="openai/gpt-4o-mini"),
-    name="action_agent",
+    name="postflop_action_agent",
     instruction="""You are a Texas Hold'em **action execution specialist** focused on calculating bet amounts and returning final JSON.
     
     **CRITICAL MISSION**
-    - Receive action decision from preflop_decision_agent and check_analysis_agent
+    - Receive action decision from check_analysis_agent
     - For raise actions: calculate optimal bet/raise amount considering pot size and stack sizes
     - For other actions: use the decision as-is
     - Return final JSON with action, amount, and reasoning
